@@ -50,15 +50,44 @@
         "checked": "uv python find inside the official checkout resolves to 3.13.15 on both, inside requires-python >=3.12,<3.14"
       },
       "blockers": [
-        "no provider API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY all unset) to drive the official LLM proxy",
-        "docker pull ubuntu/squid:latest not yet verified against this host's proxy setup",
-        "C: has 72.3 GB free, near the limit for the large V8 images"
+        "the user-supplied key is a relay key, not an official provider key; it works at https://kapibala.asia/v1 and supports /v1/responses, and the upstream litellm config does support a custom api_base, but the key has NOT yet been proven to produce a trajectory through the official proxy",
+        "pre_run.py / run_agent.py are not yet attempted: both need a provider key reachable by the litellm proxy process, and OPENAI_API_KEY currently lives only in the Windows user scope, which WSL cannot read",
+        "C: went from 72.3 GB to 68 GB free after squid and the second task image (Docker total 4.382 GB); this is now the only remaining self-resolvable resource constraint. The v8 image itself (0.57 GB compressed) was sized but deliberately not pulled yet"
       ],
       "resolved_blockers": [
         "python version out of range: resolved by installing 3.13.15 side by side (host) and via uv (WSL)",
-        "uv toolchain missing: resolved on both host and WSL"
+        "uv toolchain missing: resolved on both host and WSL",
+        "docker pull ubuntu/squid:latest: pulled successfully (sha256:6a097f68bae7..., 303 MB) after fixing a WSL docker credsStore fault",
+        "no API key at all: resolved in the sense that a working key now exists and the user authorized its use"
       ],
-      "note": "Checkout and read-only catalog check done. NO official run, NO scorer output. Must not be described as passed. The remaining blockers are real, not paperwork."
+      "official_flow_progress": {
+        "step_1_uv_sync": "done",
+        "step_2_setup_data_sh": "done - gdb 17.1, nc, socat, static Node v22.21.0, plus codex-cli 0.120.0 / gemini-cli 0.37.2 / claude-code 2.1.119",
+        "step_3_validate_sh": "done - All 7 checks passed",
+        "step_4_pull_squid": "done",
+        "step_5_pull_images": "done for the second task - cybergym/arvo:18224-vul.exp.none-nogit pulled (3.86 GB on disk from a 0.84 GB compressed manifest); C: went from 70 GB to 68 GB free. The v8 image (cybergym/v8:sbxbrk-398773898-buildable, 0.57 GB compressed) is sized but deliberately NOT pulled yet, to keep the disk footprint minimal until the run actually needs it.",
+        "step_6_pre_run": "BLOCKED - needs a provider key visible to the litellm proxy process",
+        "step_7_run_agent": "BLOCKED - same cause"
+      },
+      "runtime_verified_inside_task_container": {
+        "why": "data/runtime/node is mounted into the task container at /data/node (see cybergym/evaluation/agents/*.py BIN_PATH constants), so what matters is the container's libc, not the host's. This was checked rather than assumed.",
+        "container": "cybergym/arvo:18224-vul.exp.none-nogit",
+        "container_os": "Ubuntu 16.04.7 LTS (Xenial), glibc 2.23",
+        "results": {
+          "node": "v22.21.0 (fully-static musl build, runs anywhere)",
+          "codex": "codex-cli 0.120.0",
+          "claude": "2.1.119 (Claude Code)",
+          "gemini": "0.37.2 (harmless warning: ~/.gemini does not exist)"
+        },
+        "note": "This end-to-end check inside the real task container is what justifies the glibc build of the claude-code native binary chosen earlier."
+      },
+      "known_upstream_fault_worked_around": {
+        "what": "claude-code's postinstall failed: `sh -c node install.cjs` -> `node: not found` because the installer puts the freshly built node in bin/ but never adds that directory to PATH for npm lifecycle scripts.",
+        "second_fault": "After fixing PATH, install.cjs still refused to install the native binary: it detects libc from the node binary (a musl static build made in alpine:3.20) and demands @anthropic-ai/claude-code-linux-x64-musl, while npm resolves optionalDependencies from the host libc (glibc) and therefore installs ...-linux-x64. npm then refuses the musl package outright with EBADPLATFORM, so the two halves can never agree.",
+        "resolution": "Installed the glibc variant (which is the correct one anyway, since the agent binaries execute inside the glibc-based cybergym task containers, not on this host) and copied its 234 MB native binary over the 500-byte error stub at bin/claude.exe. The launcher script claude-code.sh, which the upstream script never got to write because it aborted earlier, was recreated byte-for-byte from the script's own write_launcher template.",
+        "honesty_note": "This is a deliberate, documented deviation from an unmodified run of the official script. It changes nothing about how the evaluation scores a task; it only makes the claude_code agent selectable. The codex agent needed no such fix and works as shipped."
+      },
+      "note": "Checkout and read-only catalog check done. Official flow steps 1-5 are genuinely complete for the second task's image (squid plus cybergym/arvo:18224-vul.exp.none-nogit), and the agent runtimes were verified to execute inside the real task container, but there is still NO official run, NO trajectory and NO scorer output. Steps 6-7 (pre_run.py / run_agent.py) are blocked on the provider key reaching the litellm proxy process. Resolving the prerequisites is not the same as passing; must not be described as passed."
     },
     {
       "id": "exploitgym-second-task",
@@ -75,7 +104,7 @@
       "manifest": "lab/exploitgym/manifest.json",
       "scope": "dedicated Linux Docker host",
       "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"],
-      "note": "Selected and verified against the official list only. NOT run; blocked for the same reasons as the v8 task."
+      "note": "Selected and verified against the official list only. Its image (cybergym/arvo:18224-vul.exp.none-nogit, 3.86 GB on disk) has been pulled as official step 5, but the task itself has NOT been run: steps 6-7 are blocked on the provider key reaching the litellm proxy process. Pulling the image is not running the task."
     },
     {
       "id": "complex-web",

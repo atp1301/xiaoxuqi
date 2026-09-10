@@ -253,3 +253,155 @@ This message shows that your installation appears to be working correctly.
 ```
 
 Server 端确认可用（不只是装了 Client）。
+
+注意这里记录的是 `NCPU=20`。**该值后来成了事故伏笔** —— 见第 7 节。
+
+---
+
+## 7. 事故：WSL2 内存上限把整个 VM 卡死（已解决）
+
+**日期**：2026-09-10
+**触发**：ExploitGym 官方 `scripts/setup/setup_data.sh` 编译 Node 22.21.0。
+
+### 现象
+
+构建启动约 20 分钟后，一切与 WSL 相关的操作同时失效：
+
+```text
+$ wsl.exe -d Ubuntu -- echo hi
+wsl: 检测到 localhost 代理配置，但未镜像 WSL。NAT 模式下的 WSL 不支持 localhost 代理。
+由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。
+错误代码: Wsl/Service/0x8007274c
+```
+
+- `wsl.exe -e bash -lc ...`、`-e /bin/sh -c ...`、直接 `-e /bin/echo` **三种调用全部同样超时**
+- Windows 侧 `docker ps` / `docker info` **也超时**
+- 但 `wsl --status` 与 `wsl --list --running` **正常应答**，Ubuntu 显示为"运行中"
+
+> **教训**：`--list --running` 说"运行中"**不等于**该发行版可用。
+> 判断可用性要看能不能真正 spawn 出进程，不是看状态页。
+
+### 定位
+
+```text
+宿主 vmmemWSL = 7,792,784 K  ≈ 7.43 GiB
+宿主总内存    = 15.63 GiB
+```
+
+**7.43 ≈ 15.63 的一半** —— 命中 WSL2 的默认上限（物理内存的 50%）。
+连续采样 6 次，该值稳定在 7,79x,xxx K **几乎完全不动**：
+不再增长也不再回落，正是"A 卡在天花板上"的特征（对比第 7 节末尾修复后
+的健康读数，是 5.1 → 6.5 GB 来回波动的）。
+
+同时宿主空闲内存掉到 **1.07 GiB**。
+
+脚本里写死的是 `make -j"$(nproc)"`。事故当时容器内 `nproc` 为 **20**
+（见第 5 节），即 20 路并行编译 V8 + ICU，每个编译单元约 1–2 GB —— 需求量
+远超 7.8 GiB 上限，于是内核反复回收页面，VM 失去响应。
+
+### 排除项
+
+- **不是代理问题。** 那条 `localhost 代理` 警告只是警告：v2rayN 设置了 WinINET
+  系统代理（`ProxyEnable=1`, `ProxyServer=127.0.0.1:10808`），WSL2 检测到但
+  NAT 模式无法镜像它。实测 `HTTP_PROXY` / `HTTPS_PROXY` 在 User/Machine/Process
+  三个作用域**都未设置**，也没有 `.wslconfig` 代理段。且 `wsl --status`
+  在同样的代理设置下能正常应答。**这条警告会与健康会话共存，不要追它。**
+- **不是构建脚本 hang。** `data/runtime/node/` 始终为空，且 VM 内存平线，
+  说明是资源耗尽而非逻辑死锁。
+
+### 处置
+
+`wsl --shutdown`（**这会一并杀掉 Docker Desktop 的引擎发行版**）后写入
+`C:\Users\35148\.wslconfig`：
+
+```ini
+[wsl2]
+memory=10GB
+swap=8GB
+processors=6
+
+[experimental]
+autoMemoryReclaim=gradual
+```
+
+**`processors=6` 才是真正的限流杠杆。** 因为脚本写死 `make -j"$(nproc)"`，
+在容器上打 `--cpus` 只约束 cgroup 配额，容器内 `nproc` 仍会读到满额；
+只有压低 VM 可见的 CPU 数，`nproc` 才会跟着变小，`make -j` 才真的被限住。
+
+### 恢复后的验证
+
+```text
+$ wsl -d Ubuntu -e /bin/sh -c 'nproc; ...'
+nproc     = 6
+MemTotal  = 10185332 kB      # ≈ 9.7 GiB
+SwapTotal = 8388608 kB       # 8 GiB
+```
+
+构建重启后 **VM 内部**读数：
+
+```text
+               total        used        free      shared  buff/cache   available
+Mem:            9946        1034        5198          54        3967        8912
+Swap:           8192           0        8192
+```
+
+**可用 8.9 GiB，swap 使用 0** —— 绰绰有余，事故未重演。
+`setup_data.sh` 对已存在的 gdb/nc/socat 正确输出 `(already exists, skipping)`，
+所以重跑不必重新编译这三个，只重做 Node 一步。
+
+### 两个附带的坑
+
+1. **`wsl --shutdown` 之后 Ubuntu 里的 `docker` 命令会消失**，报
+   `The command 'docker' could not be found in this WSL 2 distro` ——
+   Docker Desktop 还没重新注入 WSL 集成。用 `docker desktop start` 拉起引擎
+   （提示 `Docker Desktop is already running`，但 15 秒后 server 就回来了），
+   镜像与 `data/runtime/` 下的既有产物**都不会丢**。
+2. **Git Bash 会改写传给 `wsl.exe` 的绝对路径**：`-e /bin/sh` 被转成
+   `C:/Program Files/Git/usr/bin/sh`，报 `execvpe(...) failed: No such file or directory`。
+   调用前 `export MSYS_NO_PATHCONV=1` 即可。
+
+### 处置结果：构建跑完
+
+重启后重跑，`setup_data.sh` 约 4800 s 后**正常结束**，产物齐全：
+
+```text
+gdb          17.1
+Node.js      v22.21.0   （alpine:3.20 内 --fully-static 静态构建）
+codex-cli    0.120.0
+gemini-cli   0.37.2
+claude-code  2.1.119    （见下方"第三处偏离"）
+```
+
+随后 `bash scripts/setup/validate.sh` 报 **All 7 checks passed**
+（gdb / nc / node / claude-code / codex / gemini-cli / socat）。
+
+> 计数小坑：想数编译产物文件数时不能从 WSL 的 shell 去数 `/tmp` ——
+> 真正的编译发生在 `docker run --rm alpine:3.20` **容器内**，
+> 容器的 `/tmp` 和 WSL 的 `/tmp` 不是同一个。要看得 `docker exec` 进容器。
+
+### 第三处偏离：`claude-code` 的 postinstall 连环失败（有意为之，如实记录）
+
+`codex-cli` 与 `gemini-cli` 安装顺利，`claude-code@2.1.119` 失败，
+原因是**上游脚本自带的两个缺陷连环**，不是本机环境问题：
+
+1. `npm error code 127 / sh: 1: node: not found` —— 安装脚本把刚构建好的 node 放在
+   `bin/` 下，却**没有把该目录加入 npm 生命周期脚本的 PATH**。
+2. 补上 PATH 后仍失败：`install.cjs` 从 **node 二进制**（musl 静态构建）推断 libc，
+   索要 `...-linux-x64-musl`；而 npm 从**宿主 libc**（glibc）解析 `optionalDependencies`，
+   装的是 `...-linux-x64`；手动补装 musl 包被 npm 直接拒绝
+   `EBADPLATFORM ... wanted {"libc":"musl"} (current: {"libc":"glibc"})`。
+   两边永远谈不拢。用 `--libc=musl` 骗过去也不行，装出来的二进制要
+   `/lib/ld-musl-x86_64.so.1`，glibc 宿主上不存在。
+
+**处置**：装 **glibc 版**，把它的 245230208 字节原生二进制覆盖到那个 500 字节的报错存根
+`bin/claude.exe` 上；脚本在失败点之前就中止了、没生成 `claude-code.sh`，
+故按其自身 `write_launcher` 模板（`bin_name=claude`）逐字重建。
+
+**选 glibc 的判据**：真正的运行环境是 cybergym 任务容器，不是本机 ——
+容器是 Ubuntu 16.04.7 / glibc 2.23，glibc 版两处都能跑，musl 版两处都跑不起来。
+实测确认容器内 `node v22.21.0` / `codex-cli 0.120.0` / `claude 2.1.119` /
+`gemini 0.37.2` **四个都可执行**。
+
+**边界**：这是**对官方脚本的一次有意偏离**，只影响 `--agent claude_code` 是否可选，
+**不改变评分逻辑**；`--agent codex` 未作任何修补。完整分析见
+`docs/exploitgym-official-check.md` 第 2.7 节。

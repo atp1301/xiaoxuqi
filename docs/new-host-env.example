@@ -41,7 +41,8 @@ EXPLOITGYM_ROOT=F:/course-labs/exploitgym
 
 # ── 本机网络备注 ─────────────────────────────────────────────────────────────
 
-# 本机无直连公网，只有 v2rayN 代理 127.0.0.1:10808。curl/git 默认读不到它，
-# 需要显式指定，例如：
+# 连通性**不稳定，先探测再假设**：早前只有 v2rayN 代理 127.0.0.1:10808 可用；
+# 2026-09-10 实测直连已通（curl https://pypi.org/simple/ 直连与经代理均 200）。
+# 代理仍然可用作退路，需要显式指定，例如：
 #   git -c http.proxy=http://127.0.0.1:10808 clone <url>
 # Docker 拉公共镜像走 digest 校验过的镜像站，做法见 docs/new-host-setup-log.md 第 5 节。
