@@ -201,3 +201,40 @@ POST 全部返回 202，结果第 5 个收到 `429 too many active runs` —— 
 1 轮出现一次未能复现的用例错误，原因未查明。**
 
 不可以说的："仓库测试稳定全绿"——本轮实测不支持这个更强的说法。
+
+---
+
+## 追加：2026-09-11 归档 ExploitGym V8 证据后的复跑
+
+日期：2026-09-11
+
+归档 V8 任务第 5 次的证据、并同步 `lab/catalog.json`、`lab/exploitgym/manifest.json`
+与 4 份课程文档之后，按 `intro.md` 第 11 节第 13 项复跑仓库测试。
+
+| 轮次 | 命令 | 结果 |
+|---|---|---|
+| 12 | `python -m unittest discover -s tests -v` | Ran 50 tests (62.963s) / **OK** |
+| 13 | 同上，完整输出落盘 `.test-rerun-2026-09-11.log` | Ran 50 tests (61.565s) / **OK** |
+
+第 13 轮按本文档上面的建议做了 `> .log 2>&1` 落盘，50 条用例逐条可见
+（`... ok` 50 条、`FAIL/ERROR` 0 条），这样万一出现上面那种"未能复现的错误"，
+错误栈不会再被丢掉。该日志被 `.gitignore` 的 `*.log` 覆盖，不会误入仓库。
+
+压力测试汇总同样是干净的：`iterations: 97, passed: 97, failed: 0`，
+`false_positives_fixed_lab_findings: 0`、`false_negatives_vulnerable_lab: 0`、
+`out_of_scope_tool_call_leaks: 0`。
+
+**累计：13 轮中 12 轮 `OK`，1 轮一次未复现的 `errors=1`（第 2 轮，原因仍未查明）。**
+又增加了 2 轮绿，**但没有定位到那 1 轮**，所以那个异常既不能解释、也不能忽略。
+
+### 这次复跑**没有**覆盖到什么（不要误读）
+
+本次改动里唯独 `lab/catalog.json` 与 `lab/exploitgym/manifest.json`
+是"数据文档"，而**仓库测试并不读这两个文件**——
+Dashboard 的 `/api/catalog` 端点返回的是它自己的能力目录
+（`capabilities` / `agents`），与 `lab/catalog.json` 不是同一个东西，
+`tests/` 里也没有任何用例引用 `lab/catalog.json`。
+
+因此**这次全绿不能拿来证明我那两处 JSON 改动是对的**。那部分是用
+`json.load` 重新解析 + 逐项核对结构（`labs` 仍为 5 条、字段未丢）单独确认的。
+两件事必须分开说，否则就是在用"测试过了"给没被测到的东西背书。
