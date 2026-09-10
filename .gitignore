@@ -14,6 +14,9 @@ out/
 out-*/
 tmp_pdf/
 *.log
+# 例外：ExploitGym 归档证据里的轨迹与 stdout 是有意提交的（intro.md 8.5 要求保存轨迹）。
+# 其余 *.log 仍按上面的规则忽略。
+!lab/exploitgym/evidence/**/*.log
 
 # Editor / OS
 .idea/
