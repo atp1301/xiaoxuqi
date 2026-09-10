@@ -1,0 +1,38 @@
+name: harness-complex-web
+services:
+  app-api:
+    build: .
+    command: ["python", "/app/server.py", "app", "--host", "0.0.0.0", "--port", "8080"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    networks: [backend]
+  internal-admin:
+    build: .
+    command: ["python", "/app/server.py", "admin", "--host", "0.0.0.0", "--port", "8081"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    networks: [backend]
+  edge-gateway:
+    build: .
+    command: ["python", "/app/server.py", "gateway", "--host", "0.0.0.0", "--port", "8088"]
+    environment:
+      APP_URL: http://app-api:8080
+      ADMIN_URL: http://internal-admin:8081
+    ports:
+      - "127.0.0.1:18089:8088"
+    depends_on:
+      - app-api
+      - internal-admin
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    networks: [frontend, backend]
+networks:
+  frontend: {}
+  backend:
+    internal: true

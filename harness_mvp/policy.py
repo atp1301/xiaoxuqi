@@ -8,8 +8,18 @@ from .models import Target
 
 
 ALLOWED_HOSTS = frozenset({"demo.local", "localhost", "127.0.0.1"})
+# Fallback used only if the tool registry cannot be imported. Live checks
+# prefer TOOL_REGISTRY so implemented/stub status stays in one place.
 ALLOWED_ACTIONS = frozenset({
-    "recon_probe", "vuln_analyze", "exploit_simulate", "exploit_validate_sqlite", "report_write",
+    "recon_probe",
+    "vuln_analyze",
+    "code_audit_scan",
+    "env_repro_read",
+    "exploit_simulate",
+    "exploit_validate_sqlite",
+    "exploit_validate_complex",
+    "post_exploit_simulate",
+    "report_write",
 })
 
 
@@ -70,8 +80,21 @@ class PolicyEngine:
         return parsed
 
     def require_action(self, action: str, target: Target | str) -> Target:
-        if action not in ALLOWED_ACTIONS:
-            raise PolicyViolation(f"action {action!r} is not permitted")
+        spec = None
+        try:
+            from .tools import get_tool
+            spec = get_tool(action)
+        except Exception:
+            spec = None
+        if spec is None:
+            if action not in ALLOWED_ACTIONS:
+                raise PolicyViolation(f"action {action!r} is not permitted")
+        elif spec.status == "stub":
+            raise PolicyViolation(f"action {action!r} is registered as a sandbox stub and is not executable")
+        elif spec.status != "implemented":
+            raise PolicyViolation(f"action {action!r} is not an implemented tool")
+        elif spec.required_permission != action:
+            raise PolicyViolation(f"action {action!r} does not match its required permission")
         return self.require_target(target)
 
     def require_command(self, command: list[str] | tuple[str, ...]) -> list[str]:

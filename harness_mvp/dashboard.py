@@ -22,7 +22,7 @@ from .policy import PolicyEngine, PolicyViolation, parse_target
 MAX_REQUEST_BODY = 64 * 1024
 MAX_ACTIVE_RUNS = 4
 MAX_KNOWLEDGE_QUERY = 200
-STEP_NAMES = ("recon", "vuln", "exploit", "report")
+STEP_NAMES = ("recon", "code_audit", "env_repro", "vuln", "exploit", "post_exploit", "report")
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
 STATIC_FILES = {
     "/": "console.html",
@@ -51,6 +51,39 @@ def _completed_steps(state: RunState) -> list[dict[str, str]]:
     return [{"name": name, "agent": name, "status": statuses.get(name, "queued")} for name in STEP_NAMES]
 
 
+def _progress_from_record(record: "_RunRecord") -> dict[str, Any]:
+    steps = [dict(step) for step in record.steps]
+    tree = [
+        {
+            "step_id": "goal",
+            "parent_id": None,
+            "name": "complete attack-chain assessment",
+            "agent": "operator",
+            "status": record.status if record.status not in {"queued"} else "pending",
+            "depends_on": [],
+        }
+    ]
+    for step in steps:
+        tree.append(
+            {
+                "step_id": step.get("step_id") or step.get("agent"),
+                "parent_id": step.get("parent_id") or "goal",
+                "name": step.get("name") or step.get("agent"),
+                "agent": step.get("agent"),
+                "status": step.get("status"),
+                "depends_on": list(step.get("depends_on") or []),
+            }
+        )
+    completed = sum(1 for step in steps if step.get("status") in {"success", "skipped"})
+    return {
+        "steps": steps,
+        "tree": tree,
+        "completed": completed,
+        "total": len(STEP_NAMES),
+        "operator": "协调智能体 Operator：接收各 Agent 汇报 → 综合 → 分配任务",
+    }
+
+
 def build_catalog() -> dict[str, Any]:
     return {
         "product": "Harness MVP Console",
@@ -67,13 +100,18 @@ def build_catalog() -> dict[str, Any]:
                 "status": "可用",
             },
             {
+                "title": "Complex Web multi-node lab",
+                "summary": "Gateway + app-api + internal-admin: discover, verify, constrained identity, ground-truth flag.",
+                "status": "available",
+            },
+            {
                 "title": "Checkpoint 恢复",
                 "summary": "CLI 可用 --resume 从断点继续；控制台展示运行状态与报告。",
                 "status": "CLI 可用",
             },
             {
                 "title": "知识库 TF-IDF",
-                "summary": f"内置 {len(DEFAULT_ENTRIES)} 条 CWE 教学条目，可在此检索。",
+                "summary": f"四类 RAG：CVE/CWE、ATT&CK TTP、Payload 模板、成功案例，共 {len(DEFAULT_ENTRIES)}+ 条。",
                 "status": "可用",
             },
             {
@@ -88,14 +126,19 @@ def build_catalog() -> dict[str, Any]:
             },
         ],
         "agents": [
+            {"name": "operator", "label": "协调者", "summary": "接收各 Agent 汇报，综合观察后分配下一步任务。", "role": "coordinator"},
             {"name": "recon", "label": "侦察", "summary": "探测固定训练路径，记录响应摘要与哈希。"},
+            {"name": "code_audit", "label": "代码审计", "summary": "对实验源码做 sink 正则扫描和演示级污点骨架。"},
+            {"name": "env_repro", "label": "环境复现", "summary": "读取 lab/manifest.json 的启动/重置/清理命令。"},
             {"name": "vuln", "label": "漏洞分析", "summary": "识别 Demo 标记或 local-web 差分特征，并关联知识库。"},
             {"name": "exploit", "label": "验证", "summary": "Demo 模拟验证；local-web 用固定探针输出 verified/failed。"},
+            {"name": "post_exploit", "label": "横向移动", "summary": "只记录 simulated 后渗透跳转，不执行命令。"},
             {"name": "report", "label": "报告", "summary": "生成可审计 JSON/Markdown 报告。"},
         ],
         "scenarios": [
             {"id": "demo", "target_example": "demo.local", "kind": "simulated"},
             {"id": "local-web", "target_example": "http://127.0.0.1:18088", "kind": "local-real-training"},
+            {"id": "complex-web", "target_example": "http://127.0.0.1:18089", "kind": "local-real-complex-web"},
         ],
         "apis": [
             "GET /api/catalog",
@@ -105,7 +148,9 @@ def build_catalog() -> dict[str, Any]:
             "GET /api/runs",
             "POST /api/runs",
             "GET /api/runs/{id}",
+            "GET /api/runs/{id}/progress",
             "GET /api/runs/{id}/report",
+            "GET /api/tools",
         ],
         "safety": [
             "只绑定 127.0.0.1 / localhost / ::1",
@@ -178,7 +223,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "status": record.status,
                 "target": record.target,
                 "scenario": record.scenario,
-                "progress": {"steps": [dict(step) for step in record.steps]},
+                "progress": _progress_from_record(record),
                 "errors": list(record.errors),
                 "report_url": f"/api/runs/{record.run_id}/report",
             }
@@ -222,6 +267,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     {
                         "name": str(item.get("name", item.get("agent", ""))),
                         "agent": str(item.get("agent", "")),
+                        "step_id": str(item.get("step_id", item.get("agent", ""))),
+                        "parent_id": item.get("parent_id") or "goal",
+                        "depends_on": list(item.get("depends_on") or []),
                         "status": str(item.get("status", "queued")),
                     }
                     for item in steps
@@ -279,14 +327,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "limit must be an integer"})
                 return
             limit = max(1, min(limit, 10))
+            category = (query.get("category") or [None])[0]
+            if category == "":
+                category = None
             results = []
-            for entry in self.knowledge.search(raw_query, limit=limit):
+            for entry in self.knowledge.search(raw_query, limit=limit, category=category):
                 results.append(
                     {
                         "entry_id": entry.entry_id,
                         "title": entry.title,
                         "text": entry.text,
                         "cwe": entry.cwe,
+                        "category": entry.category,
                         "remediation": entry.remediation,
                         "source": entry.source,
                         "tags": list(entry.tags),
@@ -306,6 +358,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if path == "/api/runs":
             self._send_json(200, {"runs": self._run_summaries()})
             return
+        if path == "/api/tools":
+            from .tools import list_tools
+            tools = [
+                {
+                    "name": item.name,
+                    "category": item.category,
+                    "description": item.description,
+                    "required_permission": item.required_permission,
+                    "status": item.status,
+                }
+                for item in list_tools()
+            ]
+            self._send_json(200, {"tools": tools})
+            return
 
         parts = path.strip("/").split("/")
         if len(parts) not in (3, 4) or parts[:2] != ["api", "runs"]:
@@ -318,6 +384,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         if len(parts) == 3:
             self._send_json(200, self._payload(record))
+            return
+        if parts[3] == "progress":
+            self._send_json(200, {"run_id": record.run_id, "status": record.status, **_progress_from_record(record)})
             return
         if parts[3] != "report":
             self._send_json(404, {"error": "route not found"})
@@ -369,7 +438,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             target, scenario = payload.get("target", "demo.local"), payload.get("scenario", "demo")
             if not isinstance(target, str) or not isinstance(scenario, str):
                 raise ValueError("target and scenario must be strings")
-            if scenario not in {"demo", "local-web"}:
+            if scenario not in {"demo", "local-web", "complex-web"}:
                 raise ValueError("unsupported scenario")
             PolicyEngine().require_target(parse_target(target))
             output_dir = self._resolve_output(payload.get("output"))

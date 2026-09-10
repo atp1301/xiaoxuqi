@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .checkpoint import SCHEMA_VERSION
 from .models import Finding, RunState
 
 
@@ -21,12 +22,21 @@ def build_report(state: RunState) -> dict[str, Any]:
         "exploit_results": state.exploit_results,
         "agent_results": [result.__dict__ | {"status": result.status.value} for result in state.agent_results],
         "checkpoint": {
-            "schema_version": 1,
+            "schema_version": SCHEMA_VERSION,
             "path": state.checkpoint_path,
             "resumable": bool(state.checkpoint_path),
         },
         "test_evidence": state.facts.get("test_evidence", {}),
         "facts": state.facts,
+        "working_memory": {
+            "current_goal": state.working_memory.get("current_goal"),
+            "current_action": state.working_memory.get("current_action"),
+            "operator": state.working_memory.get("operator"),
+            "next_assignment": state.working_memory.get("next_assignment"),
+            "received_reports": state.working_memory.get("received_reports", []),
+        },
+        "episodic_memory": state.episodic_memory,
+        "task_tree": state.working_memory.get("task_tree", state.working_memory.get("plan", [])),
         "events": [event.__dict__ for event in state.events],
         "errors": state.errors,
     }
@@ -64,7 +74,36 @@ def render_markdown(report: dict[str, Any]) -> str:
             if validation.get("positive_sha256") and validation.get("negative_sha256"):
                 lines.append("- Evidence hashes: positive and negative response SHA-256 values are stored in the JSON report.")
             lines.append("")
-    lines.extend(["## Validation Results", "", "`verified` means the bounded local training check observed the expected differential; `simulated` means no payload was sent.", "", "```json", json.dumps(report["exploit_results"], ensure_ascii=False, indent=2), "```", ""])
+    lines.extend(["## Validation Results", "", "`verified` means the bounded local training check observed the expected differential; `simulated` means no payload was sent; complex-web also records constrained shell identity and flag match.", "", "```json", json.dumps(report["exploit_results"], ensure_ascii=False, indent=2), "```", ""])
+    evidence = report.get("test_evidence") or {}
+    if evidence.get("chain"):
+        lines.extend([
+            "## Attack Chain Evidence",
+            "",
+            f"- Chain: `{' -> '.join(evidence.get('chain', []))}`",
+            f"- Shell identity: `{evidence.get('shell_identity') or 'n/a'}`",
+            f"- Flag match: **{evidence.get('flag_match')}**",
+            f"- Flag: `{evidence.get('flag') or 'n/a'}`",
+            f"- Flag SHA-256: `{evidence.get('flag_sha256') or 'n/a'}`",
+            "",
+        ])
+    tree = report.get("task_tree") or []
+    if tree:
+        lines.extend(["## Task Tree", ""])
+        for node in tree:
+            parent = node.get("parent_id") or "root"
+            lines.append(f"- `{node.get('step_id')}` parent=`{parent}` agent=`{node.get('agent')}`: {node.get('name')}")
+        lines.append("")
+    memory = report.get("working_memory") or {}
+    if memory.get("operator"):
+        lines.extend([
+            "## Operator Memory",
+            "",
+            f"- Operator: {memory.get('operator')}",
+            f"- Current goal: `{memory.get('current_goal')}`",
+            f"- Last action: `{memory.get('current_action')}`",
+            "",
+        ])
     lines.extend(["## Agent Results", "", "```json", json.dumps(report.get("agent_results", []), ensure_ascii=False, indent=2), "```", ""])
     checkpoint = report.get("checkpoint", {})
     lines.extend(["## Checkpoint", "", f"- Path: `{checkpoint.get('path') or 'n/a'}`", f"- Resumable: **{checkpoint.get('resumable', False)}**", ""])

@@ -34,9 +34,17 @@
       "requirement": "self-built or existing complex Internet/network lab",
       "source": "https://github.com/vulhub/vulhub",
       "license": "MIT",
-      "status": "local-training-lab-ready",
-      "scope": "127.0.0.1 only",
-      "success_criteria": ["reproducible start/reset", "original HTTP evidence", "report and cleanup record"]
+      "status": "local-real-complex-web-ready",
+      "implementation": "lab/complex_web (Vulhub-style compose: edge-gateway, app-api, internal-admin)",
+      "scope": "127.0.0.1:18089 only",
+      "success_criteria": [
+        "reproducible start/reset",
+        "discover public edge and internal identity/flag routes",
+        "verify SQLi differential",
+        "obtain constrained in-lab identity uid=65532",
+        "read ground-truth flag",
+        "preserve original HTTP evidence"
+      ]
     }
   ]
 }

@@ -9,7 +9,7 @@ from typing import Any
 
 from .models import RunState
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def write_checkpoint(
@@ -18,6 +18,7 @@ def write_checkpoint(
     plan: list[dict[str, Any]],
     step_statuses: list[dict[str, Any]],
     next_step_index: int,
+    task_tree: list[dict[str, Any]] | None = None,
 ) -> str:
     """Write a complete checkpoint atomically and return its absolute path."""
     destination = Path(path).expanduser().resolve()
@@ -28,6 +29,7 @@ def write_checkpoint(
         "checkpoint_path": str(destination),
         "next_step_index": next_step_index,
         "plan": plan,
+        "task_tree": list(task_tree or plan),
         "step_statuses": step_statuses,
         "state": state.to_dict(),
     }

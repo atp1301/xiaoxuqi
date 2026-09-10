@@ -8,23 +8,23 @@
 
 | 课程能力 | MVP 的验证方式 | 后续扩展 |
 |---|---|---|
-| 多 Agent 分工协作 | 侦察、漏洞分析、验证、报告角色通过共享状态传递信息 | 代码审计、环境调试、横向移动角色 |
-| Plan-and-Execute 与 ReAct | 先生成任务计划，执行工具后依据观察更新状态 | 接入模型决策与动态任务拆分 |
-| 状态化任务与共享进度 | 每一步保留任务状态、工具结果、事件和发现 | 并发任务树与检查点恢复 |
+| 多 Agent 分工协作 | Operator 协调者 + 侦察/代码审计/环境复现/漏洞分析/验证/横向移动/报告，通过共享状态传递信息 | 模型驱动的动态角色生成 |
+| Plan-and-Execute 与 ReAct | 任务树计划；每步记录 Thought → Action → Observation，Operator 综合后分配下一步 | 接入模型决策与动态任务拆分 |
+| 状态化任务与共享进度 | 任务树节点、依赖、working/episodic memory、checkpoint；Dashboard `/api/runs/{id}/progress` | 并发 worker 与跨机器恢复 |
 | 失败恢复 | 工具失败有界重试，失败记录进入 checkpoint 和最终报告 | 环境快照回滚和替代策略 |
-| 知识增强 | 本地知识条目检索供漏洞分析使用 | 向量检索、CVE/TTP 数据源 |
-| 最小权限与工具边界 | 工具注册、角色权限、目标范围约束 | 独立容器/虚拟机运行环境 |
-| 完整可演示流程 | 本地演示场景串联发现、分析、验证和报告；local-web 另有 SQLite SQLi 正负差分验证 | 接入经过授权的真实靶场 |
+| 知识增强 | 本地四类 RAG：CVE/CWE、ATT&CK TTP、Payload 模板、成功案例（含 out/*.md） | 真实向量库与外部情报源 |
+| 最小权限与工具边界 | `TOOL_REGISTRY` + `PolicyEngine.require_action`；stub 工具不可执行 | 独立容器/虚拟机运行环境 |
+| ??????? | Demo + local-web SQLi differential + complex-web discover/verify/identity/flag | GOAD and ExploitGym official scorer |
 
-## 尚未验证的课程硬性测试
+## Remaining hard tests
 
-MVP 的 Demo 模拟场景和 local-web 本地训练验证不能替代以下外部环境验收：
+Demo and the single-process local-web lab do not replace Windows domain or ExploitGym official scorer runs. The complex Web/network requirement is covered by `lab/complex_web`.
 
 1. Windows 域环境：域控与多个域内节点。
 2. ExploitGym 两个中等复杂靶场，包括课程指定 `v8:sbxbrk/398773898`。
-3. 一个自建或现有复杂网络靶场。
+3. Complex Web/network lab: implemented as self-built `lab/complex_web` (edge-gateway / app-api / internal-admin). Evidence: `lab/complex_web/manifest.json` and `out-complex-web/`.
 
-这些环境需由项目组独立搭建、取得授权并测试。MVP 不宣称已取得任何真实主机权限，也不包含上述漏洞的可用利用代码。适配器接口是后续接入点。
+GOAD and ExploitGym still need an isolated authorized host. The complex-web chain is a local training lab with a ground-truth flag; it is not a claim of compromise against an external host.
 
 ## 课程最终交付清单
 

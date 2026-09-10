@@ -5,14 +5,14 @@ from harness_mvp.knowledge import KnowledgeBase, KnowledgeEntry
 
 class KnowledgeBaseTests(unittest.TestCase):
     def test_relevant_queries_match_cwe_sqli_xss_and_authorization(self):
-        kb = KnowledgeBase()
+        kb = KnowledgeBase(include_report_cases=False)
         self.assertEqual(kb.search("CWE-89")[0].entry_id, "CWE-089")
         self.assertEqual(kb.search("SQLi database")[0].entry_id, "CWE-089")
         self.assertEqual(kb.search("reflected XSS browser")[0].entry_id, "CWE-079")
         self.assertEqual(kb.search("authorization admin route")[0].entry_id, "CWE-862")
 
     def test_unrelated_and_empty_queries_return_no_false_positive(self):
-        kb = KnowledgeBase()
+        kb = KnowledgeBase(include_report_cases=False)
         self.assertEqual(kb.search("quantum banana telescope"), [])
         self.assertEqual(kb.search("   "), [])
         self.assertEqual(kb.search("sqli", limit=0), [])

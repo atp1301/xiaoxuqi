@@ -1,0 +1,54 @@
+{
+  "environment_id": "complex-web-v1",
+  "source_revision": "workspace-lab/complex_web",
+  "source_pattern": "Vulhub-style compose: isolated docker network, published loopback edge, reset via compose down -v",
+  "target": "http://127.0.0.1:18089",
+  "scope": [
+    "127.0.0.1:18089"
+  ],
+  "nodes": [
+    "edge-gateway",
+    "app-api",
+    "internal-admin"
+  ],
+  "start_command": "docker compose -f lab/complex_web/docker-compose.yml up -d --build",
+  "fallback_start_command": "python -m lab.complex_web",
+  "reset_command": "docker compose -f lab/complex_web/docker-compose.yml down -v && docker compose -f lab/complex_web/docker-compose.yml up -d --build",
+  "success_criteria": [
+    "Recon observes the public edge and the session-gated internal identity/flag routes",
+    "Vulnerability agent records SQLite SQL injection from a controlled response differential",
+    "Exploit agent uses the leaked classroom session to obtain the in-lab identity (uid=65532)",
+    "Exploit agent reads FLAG{harness-complex-web-authorized-v1} from internal-admin and matches ground truth",
+    "Report stores original request URLs, response excerpts, SHA-256 hashes, shell identity, and flag evidence"
+  ],
+  "ground_truth_flag": "FLAG{harness-complex-web-authorized-v1}",
+  "evidence_files": [
+    "lab/complex_web/evidence/docker-dd8964398777.json",
+    "lab/complex_web/evidence/docker-dd8964398777.md",
+    "lab/complex_web/evidence/docker-raw_http_evidence.json",
+    "lab/complex_web/evidence/docker_runtime.json",
+    "lab/complex_web/evidence/*.json",
+    "lab/complex_web/evidence/*.md",
+    "out-complex-web-docker/*.json",
+    "out-complex-web-docker/*.md",
+    "lab/complex_web/manifest.json"
+  ],
+  "cleanup_command": "docker compose -f lab/complex_web/docker-compose.yml down -v",
+  "authorized_by": "local course project owner",
+  "classification": "local-real-complex-web",
+  "last_verified_run": {
+    "run_id": "dd8964398777",
+    "runtime": "docker-compose + WSL Ubuntu + Docker Desktop 29.4.1",
+    "target": "http://127.0.0.1:18089",
+    "status": "completed",
+    "flag": "FLAG{harness-complex-web-authorized-v1}",
+    "shell_identity": "uid=65532(labuser)",
+    "classification": "local-real-complex-web-docker",
+    "evidence_files": [
+      "lab/complex_web/evidence/docker-dd8964398777.json",
+      "lab/complex_web/evidence/docker-dd8964398777.md",
+      "lab/complex_web/evidence/docker-raw_http_evidence.json",
+      "lab/complex_web/evidence/docker_runtime.json"
+    ]
+  }
+}

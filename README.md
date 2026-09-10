@@ -1,6 +1,8 @@
 # Harness MVP
 
-这是一个面向课程演示的安全多 Agent pentest harness。它把一次运行拆成 Recon、Vuln、Exploit 和 Report 四个职责清晰的 Agent，由 Orchestrator 负责规划、执行、记录状态并在失败时有限重试。
+> 新机器接手（空白电脑上的 Claude Code / 编码 Agent）：先完整阅读仓库根目录 [intro.md](intro.md)，再动手。那是给新主机的系统任务书，包含 Docker、ExploitGym、GOAD、单元测试和压力测试的逐步指令。不要跳过其中的安全边界。
+
+这是一个面向课程演示的安全多 Agent pentest harness。它把一次运行拆成 Operator 协调者 + 7 个专职 Agent（侦察、代码审计、环境复现、漏洞分析、验证、横向移动、报告）。Orchestrator 显式承担“接收汇报 → 综合 → 分配任务”，按任务树执行，并把每步包成 Thought → Action → Observation。
 
 ## 快速运行
 
@@ -18,7 +20,7 @@ python -m harness_mvp --scenario demo --target demo.local --output out
 python -m harness_mvp --serve --port 8765
 ```
 
-打开 `http://127.0.0.1:8765/` 进入网页控制台。页面会展示系统能力、四步 Agent、安全边界，并支持启动 Demo/local-web、检查靶场就绪、检索知识库、只读检查 ExploitGym。
+打开 `http://127.0.0.1:8765/` 进入网页控制台。页面会展示系统能力、Operator 与七角色、安全边界，并支持启动 Demo/local-web/complex-web、检查靶场就绪、检索知识库、只读检查 ExploitGym。
 
 接口包括：
 
@@ -29,7 +31,9 @@ python -m harness_mvp --serve --port 8765
 * `GET /api/runs`：运行列表
 * `POST /api/runs`：JSON body 可传 `target`、`scenario`、`output`
 * `GET /api/runs/{id}`：完整运行状态
+* `GET /api/runs/{id}/progress`：任务树与共享进度
 * `GET /api/runs/{id}/report`：Markdown 报告
+* `GET /api/tools`：工具库与权限/stub 状态
 ## 真实本地靶场适配
 
 MVP 还提供 `local-web` 适配器。它只访问白名单中的本机地址，记录响应摘要，并继续使用同一套 Agent、范围策略和报告链路：
@@ -43,6 +47,26 @@ docker compose -f lab/docker-compose.yml down -v
 Docker 引擎不可用时，可直接运行 `python lab/app.py --port 18088`，然后使用同样的 Harness 命令。该训练服务只在 loopback 提供虚构课程数据，不包含宿主文件读取或任意攻击载荷接口。
 
 当前 `local-web` 训练服务使用内存 SQLite 保存虚构课程记录。`/search` 存在故意设置的 GET 型 SQL 注入，Harness 使用 baseline 与两组固定课程测试输入做正负差分验证，不接受用户自定义载荷、不读取宿主文件；成功时报告会记录 `source=http-lab`、响应摘要和 SHA-256 哈希，并将验证状态标为 `verified`。这是真实本地训练服务验证，不代表对外部系统进行测试。
+
+## Complex Web multi-node lab
+
+Course B uses a self-built Vulhub-style compose lab (`lab/complex_web`) with three nodes: `edge-gateway`, `app-api`, and `internal-admin`. This replaces Demo-only evidence for the complex Web/network requirement. It is an authorized loopback training environment, not a public CVE exploit pack.
+
+```powershell
+python -m lab.complex_web
+python -m harness_mvp --scenario complex-web --target http://127.0.0.1:18089 --output out-complex-web
+```
+
+Docker alternative:
+
+```powershell
+docker compose -f lab/complex_web/docker-compose.yml up -d --build
+python -m harness_mvp --scenario complex-web --target http://127.0.0.1:18089 --output out-complex-web
+docker compose -f lab/complex_web/docker-compose.yml down -v
+```
+
+The recorded chain is discover -> SQLi differential -> constrained in-lab identity (`uid=65532`) -> ground-truth flag. The adapter still sends only fixed GET probes and stores original URLs, bodies, and SHA-256 hashes. Manifest: `lab/complex_web/manifest.json`.
+
 
 运行完成后，输出目录还会生成 `.checkpoints/<run_id>.json`。checkpoint 使用原子替换写入，记录每步状态和重试次数；可用以下命令从断点恢复：
 
@@ -89,11 +113,12 @@ python -m harness_mvp --mode llm --scenario demo --target demo.local --output ou
 
 ## 课程要求映射
 
-* 多 Agent：`agents.py` 中的 Recon/Vuln/Exploit/Report。
-* 状态感知：`RunState.facts`、`findings`、`exploit_results`、`events`。
-* 规划执行：`Orchestrator.plan()` 与执行循环。
+* 多 Agent：`agents.py` 中的 Recon/CodeAudit/EnvRepro/Vuln/Exploit/PostExploit/Report；`Orchestrator` 为协调智能体 Operator。
+* 状态感知：短期记忆 `working_memory`（`facts` 别名）+ `episodic_memory`，以及 findings/events。
+* 规划执行：任务树 `parent_id`/`depends_on`，ReAct 三段事件，失败有限重试。
 * 失败恢复：每个步骤最多两次尝试，并把错误写入状态、checkpoint 和报告；可用 `--resume` 从断点继续。
-* 知识库/RAG：`KnowledgeBase.search()` 使用 12 条本地 CWE 教学条目和标准库 TF-IDF/余弦相似度，为发现关联 CWE/修复建议。
+* 知识库/RAG：`KnowledgeBase.search()` 覆盖 CVE/CWE、ATT&CK TTP、Payload 模板、成功案例四类，标准库 TF-IDF/余弦相似度。
+* 工具库：`TOOL_REGISTRY` 注册已实现工具与 nmap/目录枚举/命令执行等沙箱 stub；`PolicyEngine.require_action` 按 registry 做最小权限检查。
 * 报告：同时输出 JSON（机器可读）和 Markdown（答辩可读）。
 
 ## 测试

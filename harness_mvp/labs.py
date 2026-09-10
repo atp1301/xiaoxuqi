@@ -31,16 +31,35 @@ def _docker_check() -> LabCheck:
     return LabCheck("docker", "container runtime", "ready", f"server {result.stdout.strip()}", "")
 
 
-def _http_check() -> LabCheck:
-    url = "http://127.0.0.1:18088/health"
+def _loopback_check(lab_id: str, requirement: str, url: str, ready_action: str, start_action: str) -> LabCheck:
     try:
         with urlopen(url, timeout=1.5) as response:
             body = response.read(256).decode("utf-8", errors="replace")
             if response.status == 200:
-                return LabCheck("local-web", "complex Web/network lab", "ready", f"{url} -> 200 {body}", "Run local-web scenario")
-            return LabCheck("local-web", "complex Web/network lab", "not_ready", f"{url} -> {response.status}", "Start lab/docker-compose.yml")
+                return LabCheck(lab_id, requirement, "ready", f"{url} -> 200 {body}", ready_action)
+            return LabCheck(lab_id, requirement, "not_ready", f"{url} -> {response.status}", start_action)
     except Exception as exc:  # urllib has platform-specific error subclasses
-        return LabCheck("local-web", "complex Web/network lab", "not_ready", str(exc), "Start lab/docker-compose.yml")
+        return LabCheck(lab_id, requirement, "not_ready", str(exc), start_action)
+
+
+def _http_check() -> LabCheck:
+    return _loopback_check(
+        "local-web",
+        "local SQLite training lab",
+        "http://127.0.0.1:18088/health",
+        "Run local-web scenario",
+        "Start lab/docker-compose.yml",
+    )
+
+
+def _complex_web_check() -> LabCheck:
+    return _loopback_check(
+        "complex-web",
+        "complex Web/network lab",
+        "http://127.0.0.1:18089/health",
+        "Run complex-web scenario",
+        "Start lab/complex_web via compose or python -m lab.complex_web",
+    )
 
 
 def _path_check(lab_id: str, requirement: str, env_name: str, expected: tuple[str, ...], next_action: str) -> LabCheck:
@@ -78,6 +97,7 @@ def check_labs() -> list[LabCheck]:
     return [
         _docker_check(),
         _http_check(),
+        _complex_web_check(),
         _path_check("goad", "Windows domain lab", "GOAD_ROOT", ("README.md",), "Set GOAD_ROOT to an isolated GOAD checkout"),
         _path_check("exploitgym", "ExploitGym two-task validation", "EXPLOITGYM_ROOT", ("README.md", "data/task_ids/v1.txt"), "Set EXPLOITGYM_ROOT on a dedicated Linux host"),
         _path_check("vulhub", "complex Web/network lab", "VULHUB_ROOT", ("README.md",), "Set VULHUB_ROOT to an authorized Vulhub checkout"),

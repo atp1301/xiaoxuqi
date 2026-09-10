@@ -46,7 +46,7 @@ class DashboardTests(unittest.TestCase):
         status, catalog = self.request("/api/catalog")
         self.assertEqual(status, 200)
         self.assertGreaterEqual(len(catalog["capabilities"]), 4)
-        self.assertEqual(len(catalog["agents"]), 4)
+        self.assertEqual(len(catalog["agents"]), 8)
 
     def test_labs_and_knowledge_endpoints(self):
         status, labs = self.request("/api/labs")
@@ -93,6 +93,31 @@ class DashboardTests(unittest.TestCase):
     def test_output_must_stay_under_root(self):
         self.assertEqual(self.request("/api/runs", {"output": "../escape"})[0], 400)
         self.assertEqual(self.request("/api/runs", {"output": str(Path(self.tmp.name) / "absolute")})[0], 400)
+
+    def test_progress_and_tools_endpoints(self):
+        status, queued = self.request("/api/runs", {"target": "demo.local", "scenario": "demo"})
+        self.assertEqual(status, 202)
+        run_id = queued["run_id"]
+        for _ in range(40):
+            _, state = self.request(f"/api/runs/{run_id}")
+            if state["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.05)
+        self.assertEqual(state["status"], "completed")
+        progress_status, progress = self.request(f"/api/runs/{run_id}/progress")
+        self.assertEqual(progress_status, 200)
+        self.assertEqual(progress["total"], 7)
+        agents = [node["agent"] for node in progress["tree"]]
+        self.assertEqual(agents[0], "operator")
+        self.assertIn("code_audit", agents)
+        self.assertIn("post_exploit", agents)
+        tools_status, tools = self.request("/api/tools")
+        self.assertEqual(tools_status, 200)
+        names = {item["name"] for item in tools["tools"]}
+        self.assertIn("recon_probe", names)
+        self.assertIn("nmap_scan", names)
+        stubs = [item for item in tools["tools"] if item["status"] == "stub"]
+        self.assertGreaterEqual(len(stubs), 3)
 
 
 if __name__ == "__main__":

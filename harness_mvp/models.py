@@ -82,9 +82,39 @@ class Event:
 
 @dataclass
 class PlanStep:
+    """One node in the attack-chain task tree.
+
+    Executable specialist steps hang under the Operator goal node
+    (`parent_id="goal"`). Status lives in checkpoint step_statuses so the
+    plan identity stays stable across retries.
+    """
+
     name: str
     agent: str
+    step_id: str = ""
+    parent_id: str | None = None
+    depends_on: list[str] = field(default_factory=list)
     max_attempts: int = 2
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "agent": self.agent,
+            "step_id": self.step_id or self.agent,
+            "parent_id": self.parent_id,
+            "depends_on": list(self.depends_on),
+            "max_attempts": self.max_attempts,
+        }
+
+
+OPERATOR_GOAL = PlanStep(
+    name="complete attack-chain assessment",
+    agent="operator",
+    step_id="goal",
+    parent_id=None,
+    depends_on=[],
+    max_attempts=1,
+)
 
 
 @dataclass
@@ -93,7 +123,8 @@ class RunState:
     scenario: str = "demo"
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
     status: RunStatus = RunStatus.PLANNED
-    facts: dict[str, Any] = field(default_factory=dict)
+    working_memory: dict[str, Any] = field(default_factory=dict)
+    episodic_memory: list[dict[str, Any]] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     exploit_results: list[dict[str, Any]] = field(default_factory=list)
     agent_results: list[AgentResult] = field(default_factory=list)
@@ -102,11 +133,41 @@ class RunState:
     report_paths: dict[str, str] = field(default_factory=dict)
     checkpoint_path: str = ""
 
+    @property
+    def facts(self) -> dict[str, Any]:
+        """Short-term operational store; alias of working_memory."""
+        return self.working_memory
+
+    @facts.setter
+    def facts(self, value: dict[str, Any]) -> None:
+        self.working_memory = value
+
     def add_event(self, phase: str, message: str, **details: Any) -> None:
         self.events.append(Event(utc_now(), phase, message, details))
 
+    def record_episode(
+        self,
+        agent: str,
+        thought: str,
+        action: str,
+        observation: str,
+        status: str,
+        **extra: Any,
+    ) -> None:
+        item = {
+            "timestamp": utc_now(),
+            "agent": agent,
+            "thought": thought,
+            "action": action,
+            "observation": observation,
+            "status": status,
+            **extra,
+        }
+        self.episodic_memory.append(item)
+
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
+        value["facts"] = value.get("working_memory", {})
 
         def normalize(item: Any) -> Any:
             if isinstance(item, Enum):
@@ -141,12 +202,14 @@ class RunState:
             for item in payload.get("agent_results", [])
         ]
         events = [Event(**item) for item in payload.get("events", [])]
+        working_memory = dict(payload.get("working_memory") or payload.get("facts") or {})
         return cls(
             target=target,
             scenario=str(payload.get("scenario", "demo")),
             run_id=str(payload.get("run_id") or uuid4().hex[:12]),
             status=RunStatus(payload.get("status", RunStatus.PLANNED.value)),
-            facts=dict(payload.get("facts") or {}),
+            working_memory=working_memory,
+            episodic_memory=list(payload.get("episodic_memory") or []),
             findings=findings,
             exploit_results=list(payload.get("exploit_results") or []),
             agent_results=agent_results,

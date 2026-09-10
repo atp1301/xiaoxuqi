@@ -3,69 +3,290 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Harness 控制台</title>
+<title>Harness MVP 控制台 - 安全评估系统</title>
 <link rel="stylesheet" href="/static/console.css">
 </head>
 <body>
-<header>
-  <h1>Harness MVP 控制台</h1>
-  <p>本地 loopback 控制台：查看系统能力、检查靶场就绪、检索知识库、启动 Demo / local-web 运行，并浏览发现与报告。不会对外部主机发起测试。</p>
-</header>
-<main>
-  <section class="panel">
-    <h2>系统能做什么</h2>
-    <div id="capability-cards" class="cards"><span class="muted">加载中...</span></div>
-    <h3>四步 Agent</h3>
-    <div id="agent-cards" class="cards"></div>
-    <h3>安全边界</h3>
-    <ul id="safety-list" class="muted"></ul>
-    <div class="note">Demo 是离线模拟；local-web 只验证本机训练服务的固定差分。GOAD / ExploitGym / Vulhub 在此只做只读就绪检查，不代表已验收。</div>
-  </section>
-  <section class="panel">
-    <h2>操作台</h2>
-    <form id="run-form">
-      <div class="row">
-        <label for="scenario-input">场景</label>
-        <select id="scenario-input"><option value="demo">Demo（离线模拟）</option><option value="local-web">Local Web（本机训练服务）</option></select>
-        <label for="target-input">目标</label>
-        <input id="target-input" value="demo.local" autocomplete="off">
+<div class="app-layout">
+  <!-- 顶部导览栏 -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/></svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">Harness MVP 控制台</span>
+          <span class="brand-subtitle">Automated Security Assessment & Harness</span>
+        </div>
       </div>
-      <div class="row">
-        <button id="run-button" type="submit">开始运行</button>
-        <button id="labs-button" class="secondary" type="button">检查靶场就绪</button>
-        <button id="catalog-refresh" class="secondary" type="button">刷新能力说明</button>
+    </div>
+
+    <!-- 模块切换导航 -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="nav-tab active" data-tab="tab-console" role="tab" aria-selected="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span>安全评估</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-labs" role="tab" aria-selected="false">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        <span>靶场诊断</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-knowledge" role="tab" aria-selected="false">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>知识库 RAG</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-spec" role="tab" aria-selected="false">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>规范与边界</span>
+      </button>
+    </nav>
+
+    <div class="header-right">
+      <div class="security-badge" title="系统严格运行于 127.0.0.1 本地回环网络，安全隔离">
+        <span class="pulse-dot"></span>
+        <span>Loopback 隔离</span>
       </div>
-    </form>
-    <h3>知识库检索</h3>
-    <div class="row">
-      <input id="kb-input" placeholder="例如：SQL injection / XSS / 授权缺失" style="flex:1;min-width:220px">
-      <button id="kb-button" class="secondary" type="button">检索</button>
     </div>
-    <div id="kb-results" class="list"><span class="muted">输入关键词后检索 12 条教学 CWE 知识。</span></div>
-    <h3>ExploitGym 只读检查</h3>
-    <div class="row">
-      <input id="eg-input" value="v8:sbxbrk/398773898" style="flex:1;min-width:220px">
-      <button id="eg-button" class="secondary" type="button">检查任务清单</button>
-    </div>
-    <pre id="eg-out" class="muted">未检查</pre>
-  </section>
-  <section class="panel">
-    <h2>靶场就绪</h2>
-    <div id="labs"><span class="muted">点击“检查靶场就绪”</span></div>
-  </section>
-  <section class="panel">
-    <h2>运行历史</h2>
-    <div id="run-list" class="list"><span class="muted">还没有运行</span></div>
-    <h3>当前运行</h3>
-    <strong id="status">等待操作...</strong>
-    <div id="steps" class="steps" aria-live="polite"></div>
-    <div id="errors" class="error"></div>
-    <p id="report"></p>
-    <h3>发现</h3>
-    <div id="findings"><span class="muted">暂无发现</span></div>
-    <details><summary>原始状态 JSON</summary><pre id="raw">等待运行...</pre></details>
-  </section>
-</main>
+  </header>
+
+  <!-- 主体内容容器 -->
+  <main class="app-main">
+    <!-- TAB 1: 作战控制台 (核心业务工作区) -->
+    <section id="tab-console" class="tab-panel active">
+      <!-- 快速下发栏 -->
+      <div class="launcher-bar">
+        <form id="run-form" class="launcher-form">
+          <div class="form-inputs-row">
+            <div class="form-group scenario-select-group">
+              <label for="scenario-input">场景模式</label>
+              <div class="select-wrapper">
+                <select id="scenario-input">
+                  <option value="demo">Demo（离线确定性模拟）</option>
+                  <option value="local-web">Local Web（本机训练靶场）</option>
+                  <option value="complex-web">Complex Web (multi-node lab)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group target-input-group">
+              <label for="target-input">测试目标</label>
+              <div class="input-wrapper">
+                <input id="target-input" value="demo.local" autocomplete="off" placeholder="请输入合规白名单目标">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button id="run-button" type="submit" class="btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>启动评估</span>
+              </button>
+            </div>
+          </div>
+          <div class="quick-targets-row">
+            <span class="quick-label">快捷目标预设：</span>
+            <button type="button" class="chip-btn" data-target="demo.local" data-scenario="demo">Demo 默认目标</button>
+            <button type="button" class="chip-btn" data-target="http://127.0.0.1:18088" data-scenario="local-web">Local-Web 本机靶场 (18088)</button>
+            <button type="button" class="chip-btn" data-target="http://127.0.0.1:18089" data-scenario="complex-web">Complex-Web lab (18089)</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 评估工作区栅格 -->
+      <div class="console-grid">
+        <!-- 左侧：历史运行会话 -->
+        <aside class="runs-sidebar">
+          <div class="sidebar-header">
+            <div class="sidebar-title">
+              <span>运行历史</span>
+              <span id="run-count-badge" class="count-pill">0</span>
+            </div>
+            <button id="refresh-runs-btn" class="icon-btn" title="刷新运行列表">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+          </div>
+          <div id="run-list" class="run-list-scroll">
+            <div class="empty-state">暂无历史运行</div>
+          </div>
+        </aside>
+
+        <!-- 右侧：当前评估状态与结果看板 -->
+        <div class="run-cockpit">
+          <!-- 评估状态卡片 -->
+          <div class="cockpit-header-card">
+            <div class="cockpit-meta">
+              <div class="target-title-row">
+                <span class="target-label">Target:</span>
+                <h2 id="cockpit-target" class="target-val">demo.local</h2>
+                <span id="status-badge-container">
+                  <strong id="status" class="badge-status">等待操作</strong>
+                </span>
+              </div>
+              <div class="run-id-row">
+                <span class="label">Run ID:</span>
+                <code id="cockpit-run-id" class="id-pill">none</code>
+                <button id="copy-run-id-btn" class="copy-chip" title="复制 Run ID">复制 ID</button>
+              </div>
+            </div>
+            <div class="cockpit-actions">
+              <div id="report" class="report-action-container"></div>
+            </div>
+          </div>
+
+          <!-- 任务树流水线 -->
+          <div class="pipeline-card">
+            <div class="card-subtitle">任务树阶段 (Task Tree Progress)</div>
+            <div id="steps" class="pipeline-stepper" aria-live="polite"></div>
+            <div id="errors" class="error-banner" style="display:none"></div>
+          </div>
+
+          <!-- 结果与内容分栏视图 -->
+          <div class="results-container">
+            <div class="results-tabs">
+              <button class="view-tab active" data-view="view-findings">
+                <span>漏洞发现 (Findings)</span>
+                <span id="findings-count-badge" class="badge-count">0</span>
+              </button>
+              <button class="view-tab" data-view="view-report">
+                <span>审计报告 (Report)</span>
+              </button>
+              <button class="view-tab" data-view="view-raw">
+                <span>原始 JSON (Raw State)</span>
+              </button>
+            </div>
+
+            <!-- 子视图 1：漏洞发现卡片 -->
+            <div id="view-findings" class="view-panel active">
+              <div id="findings" class="findings-list">
+                <div class="empty-state">尚未产生评估结果，请点击“启动评估”</div>
+              </div>
+            </div>
+
+            <!-- 子视图 2：内嵌渲染报告 -->
+            <div id="view-report" class="view-panel">
+              <div class="report-viewer-card">
+                <div class="report-header">
+                  <div class="report-title">安全评估报告 (Auditable Assessment Report)</div>
+                  <div class="report-actions">
+                    <button id="copy-report-btn" class="btn-secondary btn-sm">复制 Markdown</button>
+                    <a id="open-report-link" href="#" target="_blank" class="btn-secondary btn-sm" style="display:none">在新标签页打开</a>
+                  </div>
+                </div>
+                <div id="report-rendered-content" class="report-content markdown-body">
+                  <div class="empty-state">运行完成后在此直接预览生成的报告</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 子视图 3：原始数据 -->
+            <div id="view-raw" class="view-panel">
+              <div class="raw-card">
+                <div class="raw-header">
+                  <span>状态快照数据</span>
+                  <button id="copy-raw-btn" class="btn-secondary btn-sm">复制 JSON</button>
+                </div>
+                <pre id="raw" class="raw-code">等待运行...</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: 靶场环境诊断 -->
+    <section id="tab-labs" class="tab-panel">
+      <div class="section-hero">
+        <div class="hero-left">
+          <h2>靶场与运行环境就绪诊断</h2>
+          <p class="section-desc">检查 Docker 容器环境、本机 Local-Web 训练靶机，以及只读检查 GOAD、Vulhub 与 ExploitGym 清单配置。</p>
+        </div>
+        <button id="labs-button" class="btn-primary" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span>重新检测所有环境</span>
+        </button>
+      </div>
+
+      <div id="labs" class="labs-grid">
+        <div class="empty-state">正在诊断靶场就绪状态...</div>
+      </div>
+
+      <!-- ExploitGym 专门检查工具 -->
+      <div class="tool-subpanel">
+        <div class="tool-header">
+          <h3>ExploitGym 清单检查 (只读)</h3>
+          <span class="tool-tip">只读验证本地 Task ID 是否存在于 ExploitGym 清单中，不执行外部 benchmark</span>
+        </div>
+        <div class="tool-row">
+          <input id="eg-input" value="v8:sbxbrk/398773898" placeholder="输入 Task ID，如 v8:sbxbrk/398773898">
+          <button id="eg-button" class="btn-secondary" type="button">检查任务</button>
+        </div>
+        <div class="eg-result-box">
+          <pre id="eg-out" class="code-box">未检查</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: 知识库 RAG检索 -->
+    <section id="tab-knowledge" class="tab-panel">
+      <div class="section-hero">
+        <div class="hero-left">
+          <h2>四类知识库 (CVE / TTP / Payload / 成功案例)</h2>
+          <p class="section-desc">检索 CVE/CWE 详情、ATT&CK TTP、Payload 模板，以及历史成功案例报告。</p>
+        </div>
+      </div>
+
+      <div class="kb-search-container">
+        <div class="search-bar">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="kb-input" placeholder="输入关键词检索，例如：SQL injection / XSS / 授权缺失 / 路径穿越...">
+          <button id="kb-button" class="btn-primary" type="button">检索知识</button>
+        </div>
+        <div class="quick-keywords">
+          <span class="label">常见检索推荐：</span>
+          <button type="button" class="tag-chip" data-query="SQL injection">SQL 注入</button>
+          <button type="button" class="tag-chip" data-query="Reflected XSS">跨站脚本 (XSS)</button>
+          <button type="button" class="tag-chip" data-query="Missing authorization">未授权访问</button>
+          <button type="button" class="tag-chip" data-query="Directory traversal">路径遍历</button>
+          <button type="button" class="tag-chip" data-query="ATT&CK T1021">ATT&CK 横向移动</button>
+          <button type="button" class="tag-chip" data-query="success case complex-web">成功案例</button>
+        </div>
+      </div>
+
+      <div id="kb-results" class="kb-cards-grid">
+        <div class="empty-state">请输入关键词后检索知识库</div>
+      </div>
+    </section>
+
+    <!-- TAB 4: 规范、能力与安全边界 (原霸占主屏的说明书收纳于此) -->
+    <section id="tab-spec" class="tab-panel">
+      <div class="section-hero">
+        <div class="hero-left">
+          <h2>系统规范、能力架构与安全边界</h2>
+          <p class="section-desc">查阅系统能力定义、Operator + 7 Agent 分工与 loopback 运行防护基线。</p>
+        </div>
+        <button id="catalog-refresh" class="btn-secondary" type="button">刷新系统能力说明</button>
+      </div>
+
+      <div class="spec-section">
+        <h3 class="spec-title">系统核心能力</h3>
+        <div id="capability-cards" class="spec-grid"><span class="muted">加载中...</span></div>
+      </div>
+
+      <div class="spec-section">
+        <h3 class="spec-title">Operator 与七角色协同</h3>
+        <div id="agent-cards" class="agent-grid"></div>
+      </div>
+
+      <div class="spec-section">
+        <h3 class="spec-title">严格安全隔离边界</h3>
+        <div class="safety-card">
+          <ul id="safety-list" class="safety-ul"></ul>
+          <div class="note-box">
+            <strong>边界说明：</strong>Demo 场景为确定性离线模拟，无需外部交互；local-web 仅验证本机固定 SQLite 靶机；GOAD / ExploitGym / Vulhub 仅做只读清单就绪核查，绝不主动攻击外部非授权网络。
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
 <script src="/static/console.js"></script>
 </body>
 </html>

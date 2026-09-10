@@ -84,7 +84,7 @@ class HarnessMvpTests(unittest.TestCase):
                 state = Orchestrator(adapter=HttpLabAdapter()).run(target, "local-web", directory)
                 self.assertEqual(state.status, RunStatus.COMPLETED)
                 self.assertEqual(state.findings, [])
-                self.assertEqual(state.agent_results[2].status, AgentStatus.SKIPPED)
+                self.assertEqual(next(item.status for item in state.agent_results if item.agent == "exploit"), AgentStatus.SKIPPED)
                 self.assertFalse(state.facts["sqlite_sqli_differential"]["verified"])
         finally:
             Handler.fixed = False
@@ -127,6 +127,7 @@ class HarnessMvpTests(unittest.TestCase):
         self.assertIn(checks["goad"].status, {"not_configured", "not_ready", "ready"})
         self.assertIn(checks["exploitgym"].status, {"not_configured", "not_ready", "ready"})
         self.assertIn(checks["vulhub"].status, {"not_configured", "not_ready", "ready"})
+        self.assertIn(checks["complex-web"].status, {"ready", "not_ready"})
 
     def test_llm_config_is_optional_and_key_is_not_serialized(self):
         config = ModelConfig(api_key="secret", base_url="http://127.0.0.1:9/v1", model="test")
@@ -181,7 +182,7 @@ class HarnessMvpTests(unittest.TestCase):
             self.assertTrue(any("restored from checkpoint" in event.message for event in resumed.events))
             report = json.loads(Path(resumed.report_paths["json"]).read_text(encoding="utf-8"))
             self.assertIn("agent_results", report)
-            self.assertEqual(report["checkpoint"]["schema_version"], 1)
+            self.assertEqual(report["checkpoint"]["schema_version"], 2)
 
 
 if __name__ == "__main__":

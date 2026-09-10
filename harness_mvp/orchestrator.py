@@ -9,17 +9,50 @@ from uuid import uuid4
 from .agents import make_agents
 from .checkpoint import load_checkpoint, write_checkpoint
 from .llm import LLMClient
-from .models import AgentResult, AgentStatus, PlanStep, RunState, RunStatus
+from .models import OPERATOR_GOAL, AgentResult, AgentStatus, PlanStep, RunState, RunStatus
 from .policy import PolicyEngine, parse_target
 from .report import write_report
+from .complex_lab import ComplexWebAdapter
 from .tools import DemoLabAdapter, HttpLabAdapter, KnowledgeBase
 
 
 ProgressCallback = Callable[[RunState, list[dict[str, Any]]], None]
 
+OPERATOR_ROLE = "\u534f\u8c03\u667a\u80fd\u4f53 Operator\uff1a\u63a5\u6536\u5404 Agent \u6c47\u62a5 \u2192 \u7efc\u5408 \u2192 \u5206\u914d\u4efb\u52a1"
+
+_THOUGHTS = {
+    "recon": "The goal is an authorized attack-chain assessment. Start with recon of training paths.",
+    "code_audit": "Recon recorded endpoints. Scan lab source for regex sinks; demo-level taint only.",
+    "env_repro": "Read the lab manifest and emit start/reset/cleanup reproduction steps.",
+    "vuln": "Combine recon and code-audit observations, then retrieve CVE/TTP/payload/case knowledge.",
+    "exploit": "Validate recorded findings in policy scope. Demo stays simulated; labs use fixed probes.",
+    "post_exploit": "Plan lateral movement from the foothold, but only record a simulated hop.",
+    "report": "Synthesize agent reports, evidence, and failures into an auditable report.",
+}
+
+_RECON_FACT_KEYS = (
+    "endpoints",
+    "raw_evidence",
+    "reachable",
+    "sqlite_sqli_validation",
+    "sqlite_sqli_validation_error",
+    "sqlite_sqli_differential",
+    "complex_sqli_validation",
+    "complex_sqli_validation_error",
+    "complex_sqli_differential",
+    "complex_chain",
+    "raw_http_evidence",
+    "test_evidence",
+)
+
 
 class Orchestrator:
-    """Plan, execute, persist and resume a bounded agent run."""
+    """Operator coordinator: receive agent reports, synthesize, assign the next task.
+
+    Plan-and-Execute builds a task tree; each specialist step is wrapped in a
+    ReAct Thought -> Action -> Observation record. The Operator never calls
+    exploit tools itself.
+    """
 
     def __init__(
         self,
@@ -52,15 +85,61 @@ class Orchestrator:
 
     def plan(self) -> list[PlanStep]:
         return [
-            PlanStep("discover attack surface", "recon"),
-            PlanStep("analyze observations", "vuln"),
-            PlanStep("validate in lab", "exploit"),
-            PlanStep("assemble report", "report"),
+            PlanStep("discover attack surface", "recon", "recon", "goal", []),
+            PlanStep("static code audit", "code_audit", "code_audit", "goal", ["recon"]),
+            PlanStep("reproduce lab environment", "env_repro", "env_repro", "goal", []),
+            PlanStep("analyze observations", "vuln", "vuln", "goal", ["recon", "code_audit"]),
+            PlanStep("validate in lab", "exploit", "exploit", "goal", ["vuln"]),
+            PlanStep("simulate post-exploit movement", "post_exploit", "post_exploit", "goal", ["exploit"]),
+            PlanStep("assemble report", "report", "report", "goal", ["exploit", "post_exploit", "env_repro"]),
         ]
+
+    def task_tree(self) -> list[PlanStep]:
+        return [OPERATOR_GOAL, *self.plan()]
 
     @staticmethod
     def _plan_dicts(plan: list[PlanStep]) -> list[dict[str, Any]]:
-        return [step.__dict__.copy() for step in plan]
+        return [step.to_dict() for step in plan]
+
+    def build_progress(self, plan: list[PlanStep], statuses: list[dict[str, Any]]) -> dict[str, Any]:
+        derived = "pending"
+        if any(item.get("status") == "failed" for item in statuses):
+            derived = "failed"
+        elif any(item.get("status") == "running" for item in statuses):
+            derived = "running"
+        elif statuses and all(item.get("status") in {"success", "skipped"} for item in statuses):
+            derived = "success"
+        tree = [
+            {
+                "step_id": OPERATOR_GOAL.step_id,
+                "parent_id": None,
+                "name": OPERATOR_GOAL.name,
+                "agent": OPERATOR_GOAL.agent,
+                "status": derived,
+                "depends_on": [],
+            }
+        ]
+        steps: list[dict[str, Any]] = []
+        for step, record in zip(plan, statuses):
+            node = {
+                "step_id": step.step_id or step.agent,
+                "parent_id": step.parent_id,
+                "name": step.name,
+                "agent": step.agent,
+                "status": str(record.get("status", "pending")),
+                "depends_on": list(step.depends_on),
+                "attempts": int(record.get("attempts", 0) or 0),
+            }
+            tree.append(node)
+            steps.append(node)
+        completed = sum(1 for item in statuses if item.get("status") in {"success", "skipped"})
+        return {
+            "steps": steps,
+            "tree": tree,
+            "completed": completed,
+            "total": len(plan),
+            "operator": OPERATOR_ROLE,
+        }
 
     @staticmethod
     def _validate_checkpoint_plan(
@@ -89,7 +168,17 @@ class Orchestrator:
                 raise ValueError("checkpoint attempts must be an integer") from exc
             if attempts < 0:
                 raise ValueError("checkpoint attempts cannot be negative")
-            normalized.append({"agent": step.agent, "status": status, "attempts": attempts})
+            normalized.append(
+                {
+                    "agent": step.agent,
+                    "name": step.name,
+                    "step_id": step.step_id or step.agent,
+                    "parent_id": step.parent_id,
+                    "depends_on": list(step.depends_on),
+                    "status": status,
+                    "attempts": attempts,
+                }
+            )
         return normalized
 
     @staticmethod
@@ -99,28 +188,37 @@ class Orchestrator:
                 return index
         return None
 
-    @staticmethod
-    def _invalidate_dependent_state(state: RunState, first_index: int) -> None:
-        if first_index <= 0:
-            for key in (
-                "endpoints",
-                "raw_evidence",
-                "reachable",
-                "sqlite_sqli_validation",
-                "sqlite_sqli_validation_error",
-            ):
+    def _invalidate_dependent_state(self, state: RunState, first_index: int) -> None:
+        remaining = {step.agent for step in self.plan()[first_index:]}
+        if "recon" in remaining:
+            for key in _RECON_FACT_KEYS:
                 state.facts.pop(key, None)
-        if first_index <= 1:
+        if "code_audit" in remaining:
+            state.facts.pop("code_audit", None)
+        if "env_repro" in remaining:
+            state.facts.pop("env_repro", None)
+        if "vuln" in remaining:
             state.findings = []
-        if first_index <= 2:
+            state.facts.pop("llm_advisory", None)
+        if "exploit" in remaining:
             state.exploit_results = []
-        if first_index <= 3:
+            state.facts.pop("complex_chain", None)
+            state.facts.pop("raw_http_evidence", None)
+            state.facts.pop("test_evidence", None)
+        if "post_exploit" in remaining:
+            state.facts.pop("post_exploit", None)
+        if "report" in remaining:
             state.report_paths = {}
 
     def _select_adapter(self, scenario: str) -> None:
         if self._adapter_injected:
             return
-        self.adapter = HttpLabAdapter(self.policy) if scenario == "local-web" else DemoLabAdapter(self.policy)
+        if scenario == "local-web":
+            self.adapter = HttpLabAdapter(self.policy)
+        elif scenario == "complex-web":
+            self.adapter = ComplexWebAdapter(self.policy)
+        else:
+            self.adapter = DemoLabAdapter(self.policy)
         self.agents = make_agents(self.adapter, self.policy, self.kb, self.llm)
 
     @staticmethod
@@ -131,6 +229,47 @@ class Orchestrator:
     ) -> None:
         if callback is not None:
             callback(deepcopy(state), deepcopy(statuses))
+
+    def _think(self, state: RunState, step: PlanStep, attempt: int) -> str:
+        prefix = f"{OPERATOR_ROLE} [{step.agent} attempt {attempt}] "
+        return prefix + _THOUGHTS.get(step.agent, step.name)
+
+    def _synthesize(self, state: RunState, step: PlanStep, result: AgentResult) -> None:
+        names = [item.agent for item in self.plan()]
+        try:
+            nxt = names[names.index(step.agent) + 1]
+        except (ValueError, IndexError):
+            nxt = None
+        brief = f"{step.agent} -> {result.status.value}: {result.summary}"
+        reports = [
+            f"{item.agent}:{item.status.value}"
+            for item in state.agent_results
+            if item.agent in names
+        ]
+        state.working_memory["operator"] = OPERATOR_ROLE
+        state.working_memory["current_goal"] = OPERATOR_GOAL.name
+        state.working_memory["current_action"] = step.agent
+        state.working_memory["last_report"] = brief
+        state.working_memory["next_assignment"] = nxt
+        state.working_memory["received_reports"] = reports[-8:]
+        state.add_event(
+            "operator",
+            "received agent report and assigned next task",
+            agent=step.agent,
+            next_assignment=nxt,
+            summary=result.summary,
+        )
+
+    def _status_record(self, step: PlanStep, status: str = "pending", attempts: int = 0) -> dict[str, Any]:
+        return {
+            "agent": step.agent,
+            "name": step.name,
+            "step_id": step.step_id or step.agent,
+            "parent_id": step.parent_id,
+            "depends_on": list(step.depends_on),
+            "status": status,
+            "attempts": attempts,
+        }
 
     def run(
         self,
@@ -146,9 +285,6 @@ class Orchestrator:
             if Path(resume_from).resolve() != Path(checkpoint_path).resolve():
                 raise ValueError("resume_from and checkpoint_path refer to different files")
 
-        # resume_from explicitly reads a checkpoint. For compatibility, an
-        # existing checkpoint_path is also treated as a read source; a missing
-        # checkpoint_path is used as the write destination.
         resume_path: Path | None = Path(resume_from).expanduser().resolve() if resume_from else None
         if resume_path is None and checkpoint_path and Path(checkpoint_path).is_file():
             resume_path = Path(checkpoint_path).expanduser().resolve()
@@ -162,38 +298,40 @@ class Orchestrator:
             scenario = state.scenario
         else:
             parsed = self.policy.require_target(parse_target(target))
-            if scenario not in {"demo", "local-web"}:
+            if scenario not in {"demo", "local-web", "complex-web"}:
                 raise ValueError(f"unsupported scenario: {scenario}")
             state = RunState(target=parsed, scenario=scenario, run_id=run_id or uuid4().hex[:12])
 
-        if scenario not in {"demo", "local-web"}:
+        if scenario not in {"demo", "local-web", "complex-web"}:
             raise ValueError(f"unsupported scenario: {scenario}")
         self._select_adapter(scenario)
 
         plan = self.plan()
         plan_dicts = self._plan_dicts(plan)
+        tree_dicts = self._plan_dicts(self.task_tree())
         if payload is not None:
             statuses = self._validate_checkpoint_plan(payload, plan)
             first_incomplete = self._first_incomplete(statuses)
             if first_incomplete is not None:
                 self._invalidate_dependent_state(state, first_incomplete)
-                # A resume gets a fresh bounded budget for the first failed
-                # step and all dependent steps. Historical attempts remain in
-                # state.agent_results, errors and events.
                 for record in statuses[first_incomplete:]:
                     record["status"] = "pending"
                     record["attempts"] = 0
         else:
             first_incomplete = 0
-            statuses = [
-                {"agent": step.agent, "status": "pending", "attempts": 0}
-                for step in plan
-            ]
-            state.facts["agent_mode"] = self.mode if self.llm is None else "llm-advisory"
-            state.facts["plan"] = plan_dicts
+            statuses = [self._status_record(step) for step in plan]
+            state.working_memory["agent_mode"] = self.mode if self.llm is None else "llm-advisory"
+            state.working_memory["plan"] = plan_dicts
+            state.working_memory["task_tree"] = tree_dicts
+            state.working_memory["operator"] = OPERATOR_ROLE
+            state.working_memory["current_goal"] = OPERATOR_GOAL.name
+            state.working_memory["current_action"] = None
             state.add_event("plan", "created bounded agent plan", steps=[step.agent for step in plan])
 
-        state.facts["plan"] = plan_dicts
+        state.working_memory["plan"] = plan_dicts
+        state.working_memory["task_tree"] = tree_dicts
+        state.working_memory["operator"] = OPERATOR_ROLE
+        state.working_memory["current_goal"] = OPERATOR_GOAL.name
         checkpoint_destination = (
             Path(resume_path).resolve()
             if resume_path
@@ -204,14 +342,14 @@ class Orchestrator:
         state.checkpoint_path = str(checkpoint_destination)
         state.status = RunStatus.RUNNING
         resume_index = len(plan) if first_incomplete is None else first_incomplete
-        write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, resume_index)
+        write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, resume_index, task_tree=tree_dicts)
         self._notify(progress_callback, state, statuses)
 
         for index, step in enumerate(plan):
             record = statuses[index]
             if payload is not None and record.get("status") in {"success", "skipped"}:
                 state.add_event(step.agent, "skipped; restored from checkpoint", checkpoint=str(checkpoint_destination))
-                write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index + 1)
+                write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index + 1, task_tree=tree_dicts)
                 self._notify(progress_callback, state, statuses)
                 continue
 
@@ -225,8 +363,14 @@ class Orchestrator:
             for attempt in range(first_attempt, step.max_attempts + 1):
                 record["status"] = "running"
                 record["attempts"] = attempt
+                thought = self._think(state, step, attempt)
+                action = f"invoke {step.agent}"
+                state.working_memory["current_action"] = step.agent
+                state.working_memory["current_agent"] = step.agent
+                state.add_event("thought", thought, agent=step.agent, attempt=attempt)
+                state.add_event("action", action, agent=step.agent, attempt=attempt, tool=step.agent)
                 state.add_event(step.agent, "agent started", attempt=attempt)
-                write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index)
+                write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index, task_tree=tree_dicts)
                 self._notify(progress_callback, state, statuses)
                 try:
                     result = agent.run(state)
@@ -234,10 +378,19 @@ class Orchestrator:
                     result = AgentResult(agent.name, AgentStatus.FAILED, f"{agent.name} failed", errors=[str(exc)])
                 last_result = result
                 state.agent_results.append(result)
+                state.add_event(
+                    "observation",
+                    result.summary,
+                    agent=step.agent,
+                    status=result.status.value,
+                    observations=result.observations,
+                )
+                state.record_episode(step.agent, thought, action, result.summary, result.status.value, attempt=attempt)
+                self._synthesize(state, step, result)
                 if result.status != AgentStatus.FAILED:
                     record["status"] = result.status.value
                     state.add_event(step.agent, result.status.value, summary=result.summary)
-                    write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index + 1)
+                    write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index + 1, task_tree=tree_dicts)
                     self._notify(progress_callback, state, statuses)
                     break
 
@@ -249,7 +402,7 @@ class Orchestrator:
                     errors=result.errors,
                 )
                 state.add_event(step.agent, result.status.value, summary=result.summary)
-                write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index)
+                write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, index, task_tree=tree_dicts)
                 self._notify(progress_callback, state, statuses)
 
             if last_result is None:
@@ -270,7 +423,7 @@ class Orchestrator:
             if last_result.status == AgentStatus.FAILED and step.agent in {"vuln", "exploit"}:
                 state.add_event(step.agent, f"{step.agent} failed; report will include the failure")
             next_index = index + 1 if last_result.status != AgentStatus.FAILED else index
-            write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, next_index)
+            write_checkpoint(state, checkpoint_destination, plan_dicts, statuses, next_index, task_tree=tree_dicts)
             self._notify(progress_callback, state, statuses)
 
         latest_results: dict[str, AgentResult] = {}
@@ -294,6 +447,7 @@ class Orchestrator:
             plan_dicts,
             statuses,
             len(plan) if remaining_index is None else remaining_index,
+            task_tree=tree_dicts,
         )
         self._notify(progress_callback, state, statuses)
         return state

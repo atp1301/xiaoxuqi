@@ -10,7 +10,7 @@ from .policy import PolicyViolation
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Safe multi-agent pentest harness MVP")
-    parser.add_argument("--scenario", choices=["demo", "local-web"], default="demo")
+    parser.add_argument("--scenario", choices=["demo", "local-web", "complex-web"], default="demo")
     parser.add_argument("--target", default="demo.local")
     parser.add_argument("--output", default="out")
     parser.add_argument("--serve", action="store_true", help="start the loopback web console")
