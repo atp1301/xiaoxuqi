@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness 控制台</title>
+<link rel="stylesheet" href="/static/console.css">
+</head>
+<body>
+<header>
+  <h1>Harness MVP 控制台</h1>
+  <p>本地 loopback 控制台：查看系统能力、检查靶场就绪、检索知识库、启动 Demo / local-web 运行，并浏览发现与报告。不会对外部主机发起测试。</p>
+</header>
+<main>
+  <section class="panel">
+    <h2>系统能做什么</h2>
+    <div id="capability-cards" class="cards"><span class="muted">加载中...</span></div>
+    <h3>四步 Agent</h3>
+    <div id="agent-cards" class="cards"></div>
+    <h3>安全边界</h3>
+    <ul id="safety-list" class="muted"></ul>
+    <div class="note">Demo 是离线模拟；local-web 只验证本机训练服务的固定差分。GOAD / ExploitGym / Vulhub 在此只做只读就绪检查，不代表已验收。</div>
+  </section>
+  <section class="panel">
+    <h2>操作台</h2>
+    <form id="run-form">
+      <div class="row">
+        <label for="scenario-input">场景</label>
+        <select id="scenario-input"><option value="demo">Demo（离线模拟）</option><option value="local-web">Local Web（本机训练服务）</option></select>
+        <label for="target-input">目标</label>
+        <input id="target-input" value="demo.local" autocomplete="off">
+      </div>
+      <div class="row">
+        <button id="run-button" type="submit">开始运行</button>
+        <button id="labs-button" class="secondary" type="button">检查靶场就绪</button>
+        <button id="catalog-refresh" class="secondary" type="button">刷新能力说明</button>
+      </div>
+    </form>
+    <h3>知识库检索</h3>
+    <div class="row">
+      <input id="kb-input" placeholder="例如：SQL injection / XSS / 授权缺失" style="flex:1;min-width:220px">
+      <button id="kb-button" class="secondary" type="button">检索</button>
+    </div>
+    <div id="kb-results" class="list"><span class="muted">输入关键词后检索 12 条教学 CWE 知识。</span></div>
+    <h3>ExploitGym 只读检查</h3>
+    <div class="row">
+      <input id="eg-input" value="v8:sbxbrk/398773898" style="flex:1;min-width:220px">
+      <button id="eg-button" class="secondary" type="button">检查任务清单</button>
+    </div>
+    <pre id="eg-out" class="muted">未检查</pre>
+  </section>
+  <section class="panel">
+    <h2>靶场就绪</h2>
+    <div id="labs"><span class="muted">点击“检查靶场就绪”</span></div>
+  </section>
+  <section class="panel">
+    <h2>运行历史</h2>
+    <div id="run-list" class="list"><span class="muted">还没有运行</span></div>
+    <h3>当前运行</h3>
+    <strong id="status">等待操作...</strong>
+    <div id="steps" class="steps" aria-live="polite"></div>
+    <div id="errors" class="error"></div>
+    <p id="report"></p>
+    <h3>发现</h3>
+    <div id="findings"><span class="muted">暂无发现</span></div>
+    <details><summary>原始状态 JSON</summary><pre id="raw">等待运行...</pre></details>
+  </section>
+</main>
+<script src="/static/console.js"></script>
+</body>
+</html>

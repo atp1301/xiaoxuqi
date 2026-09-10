@@ -1,0 +1,9 @@
+services:
+  training-web:
+    build: .
+    ports:
+      - "127.0.0.1:18088:8088"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"

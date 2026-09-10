@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local secrets
+.env
+.env.local
+
+# Runtime outputs
+out/
+out-*/
+tmp_pdf/
+*.log
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local scratch
+_write_*.py
+_fix_readme.py
+_dashboard_backup.py

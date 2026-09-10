@@ -1,0 +1,42 @@
+{
+  "purpose": "course-required lab integration points",
+  "labs": [
+    {
+      "id": "goad",
+      "requirement": "Windows domain with domain controller and multiple domain nodes",
+      "source": "https://github.com/Orange-Cyberdefense/GOAD",
+      "license": "GPL-3.0",
+      "status": "external-not-configured",
+      "scope": "isolated Windows VM network",
+      "success_criteria": ["asset and identity discovery", "authorized privilege path evidence", "data collection and report"]
+    },
+    {
+      "id": "exploitgym-v8-sbxbrk",
+      "requirement": "ExploitGym specified task",
+      "source": "https://github.com/sunblaze-ucb/exploitgym",
+      "license": "Apache-2.0 plus upstream task data licenses",
+      "task_id": "v8:sbxbrk/398773898",
+      "status": "external-not-configured",
+      "scope": "dedicated Linux Docker host",
+      "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"]
+    },
+    {
+      "id": "exploitgym-second-task",
+      "requirement": "ExploitGym second medium-complexity task",
+      "source": "https://github.com/sunblaze-ucb/exploitgym",
+      "license": "Apache-2.0 plus upstream task data licenses",
+      "status": "choose-from-official-task-list",
+      "scope": "dedicated Linux Docker host",
+      "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"]
+    },
+    {
+      "id": "complex-web",
+      "requirement": "self-built or existing complex Internet/network lab",
+      "source": "https://github.com/vulhub/vulhub",
+      "license": "MIT",
+      "status": "local-training-lab-ready",
+      "scope": "127.0.0.1 only",
+      "success_criteria": ["reproducible start/reset", "original HTTP evidence", "report and cleanup record"]
+    }
+  ]
+}

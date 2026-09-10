@@ -1,0 +1,25 @@
+{
+  "environment_id": "local-training-web-v1",
+  "source_revision": "workspace-lab",
+  "target": "http://127.0.0.1:18088",
+  "scope": [
+    "127.0.0.1:18088"
+  ],
+  "start_command": "docker compose -f lab/docker-compose.yml up -d --build",
+  "reset_command": "docker compose -f lab/docker-compose.yml down -v && docker compose -f lab/docker-compose.yml up -d --build",
+  "success_criteria": [
+    "Harness local-web run completes",
+    "Recon observes the five training routes",
+    "Vulnerability agent records one SQLite SQL injection finding from a controlled response differential",
+    "Exploit agent records verified status using fixed baseline/positive/negative course probes",
+    "Report contains HTTP-lab evidence, response hashes, and validation status"
+  ],
+  "evidence_files": [
+    "out-local/*.json",
+    "out-local/*.md"
+  ],
+  "cleanup_command": "docker compose -f lab/docker-compose.yml down -v",
+  "authorized_by": "local course project owner",
+  "classification": "local-real-training-lab"
+}
+
