@@ -23,12 +23,18 @@
   ],
   "ground_truth_flag": "FLAG{harness-complex-web-authorized-v1}",
   "evidence_files": [
+    "lab/complex_web/evidence/newhost-cf386e367e8b.json",
+    "lab/complex_web/evidence/newhost-cf386e367e8b.md",
+    "lab/complex_web/evidence/newhost-raw_http_evidence.json",
+    "lab/complex_web/evidence/newhost_runtime.json",
     "lab/complex_web/evidence/docker-dd8964398777.json",
     "lab/complex_web/evidence/docker-dd8964398777.md",
     "lab/complex_web/evidence/docker-raw_http_evidence.json",
     "lab/complex_web/evidence/docker_runtime.json",
     "lab/complex_web/evidence/*.json",
     "lab/complex_web/evidence/*.md",
+    "out-complex-web-newhost/*.json",
+    "out-complex-web-newhost/*.md",
     "out-complex-web-docker/*.json",
     "out-complex-web-docker/*.md",
     "lab/complex_web/manifest.json"
@@ -37,6 +43,24 @@
   "authorized_by": "local course project owner",
   "classification": "local-real-complex-web",
   "last_verified_run": {
+    "run_id": "cf386e367e8b",
+    "host": "ASUS TUF Gaming F16 FX607JV (Windows 11 Home China 10.0.26200, i7-13650HX, 15.63 GiB)",
+    "runtime": "docker-compose + Docker Desktop 4.90.0 (Engine 29.7.2, linux/amd64)",
+    "verified_at_local": "2026-09-10T15:32:20+08:00",
+    "target": "http://127.0.0.1:18089",
+    "status": "completed",
+    "flag": "FLAG{harness-complex-web-authorized-v1}",
+    "shell_identity": "uid=65532(labuser)",
+    "classification": "local-real-complex-web-docker",
+    "note": "Reproduced on the new host on 2026-09-10. This is the acceptance run for this machine. Evidence is the new run's own JSON/Markdown, not a copy of the original machine's output.",
+    "evidence_files": [
+      "lab/complex_web/evidence/newhost-cf386e367e8b.json",
+      "lab/complex_web/evidence/newhost-cf386e367e8b.md",
+      "lab/complex_web/evidence/newhost-raw_http_evidence.json",
+      "lab/complex_web/evidence/newhost_runtime.json"
+    ]
+  },
+  "previous_verified_run": {
     "run_id": "dd8964398777",
     "runtime": "docker-compose + WSL Ubuntu + Docker Desktop 29.4.1",
     "target": "http://127.0.0.1:18089",
@@ -44,6 +68,7 @@
     "flag": "FLAG{harness-complex-web-authorized-v1}",
     "shell_identity": "uid=65532(labuser)",
     "classification": "local-real-complex-web-docker",
+    "note": "Original author machine. Reference only; not this host's acceptance evidence.",
     "evidence_files": [
       "lab/complex_web/evidence/docker-dd8964398777.json",
       "lab/complex_web/evidence/docker-dd8964398777.md",

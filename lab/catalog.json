@@ -1,5 +1,7 @@
 {
   "purpose": "course-required lab integration points",
+  "host": "ASUS TUF Gaming F16 FX607JV (Windows 11 Home China 10.0.26200, i7-13650HX, 15.63 GiB)",
+  "last_updated_local": "2026-09-10",
   "labs": [
     {
       "id": "goad",
@@ -7,8 +9,15 @@
       "source": "https://github.com/Orange-Cyberdefense/GOAD",
       "license": "GPL-3.0",
       "status": "external-not-configured",
+      "verified": false,
+      "domain_admin_achieved": false,
       "scope": "isolated Windows VM network",
-      "success_criteria": ["asset and identity discovery", "authorized privilege path evidence", "data collection and report"]
+      "success_criteria": ["asset and identity discovery", "authorized privilege path evidence", "data collection and report"],
+      "host_feasibility": "infeasible",
+      "infeasibility_summary": "No hypervisor installed (VirtualBox/VMware/Vagrant all absent); Docker Desktop already owns Hyper-V/WSL2; 15.63 GiB RAM with 8.1 GB already given to Docker; C: has 72.3 GB free, below the 80 GB floor.",
+      "manifest": "lab/goad/manifest.json",
+      "evidence": ["docs/new-host-hardware.md", "lab/goad/manifest.json"],
+      "note": "NOT installed. Recorded as infeasible rather than simulated. Status must not be upgraded because a manifest exists or because the upstream repo was read."
     },
     {
       "id": "exploitgym-v8-sbxbrk",
@@ -17,17 +26,45 @@
       "license": "Apache-2.0 plus upstream task data licenses",
       "task_id": "v8:sbxbrk/398773898",
       "status": "external-not-configured",
+      "verified": false,
+      "catalog_status": "catalog_ready",
+      "benchmark_status": "external-benchmark-pending",
+      "scorer_passed": false,
       "scope": "dedicated Linux Docker host",
-      "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"]
+      "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"],
+      "checkout": {
+        "root_env": "EXPLOITGYM_ROOT",
+        "path": "F:/course-labs/exploitgym",
+        "path_on_host": "F:\\course-labs\\exploitgym",
+        "commit": "e4123d043774623b2274e6bbe0155a423d631f0a",
+        "commit_date": "2026-08-05",
+        "confirmed_in_catalog": true,
+        "catalog_line": 867,
+        "catalog_file": "data/task_ids/v1.txt"
+      },
+      "evidence": ["docs/exploitgym-catalog-check.md", "docs/exploitgym-official-check.md"],
+      "blockers": [
+        "pyproject requires-python >=3.12,<3.14; host and WSL both ship Python 3.14.4",
+        "uv is not installed on host or WSL",
+        "no provider API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY all unset) to drive the official LLM proxy"
+      ],
+      "note": "Checkout and read-only catalog check done. NO official run, NO scorer output. Must not be described as passed."
     },
     {
       "id": "exploitgym-second-task",
       "requirement": "ExploitGym second medium-complexity task",
       "source": "https://github.com/sunblaze-ucb/exploitgym",
       "license": "Apache-2.0 plus upstream task data licenses",
-      "status": "choose-from-official-task-list",
+      "task_id": "user:cybergym/arvo_18224",
+      "status": "external-not-configured",
+      "verified": false,
+      "scorer_passed": false,
+      "selection_reason": "Userspace (cybergym binary exploit) rather than kernel or V8: intro.md section 8.3 says to prefer userspace for a higher success rate and cleaner scorer evidence. It appears in the official curated sample list data/task_ids/sample.txt AND in the full data/task_ids/v1.txt, so the ID is not invented. It avoids kernel tasks (which may need privileged containers) and avoids the very large V8 images on a host with only 72.3 GB free on C:.",
+      "confirmed_in_catalog": true,
+      "confirmed_in_sample": true,
       "scope": "dedicated Linux Docker host",
-      "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"]
+      "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"],
+      "note": "Selected and verified against the official list only. NOT run; blocked for the same reasons as the v8 task."
     },
     {
       "id": "complex-web",
@@ -35,6 +72,7 @@
       "source": "https://github.com/vulhub/vulhub",
       "license": "MIT",
       "status": "local-real-complex-web-ready",
+      "verified": true,
       "implementation": "lab/complex_web (Vulhub-style compose: edge-gateway, app-api, internal-admin)",
       "scope": "127.0.0.1:18089 only",
       "success_criteria": [
@@ -44,7 +82,37 @@
         "obtain constrained in-lab identity uid=65532",
         "read ground-truth flag",
         "preserve original HTTP evidence"
-      ]
+      ],
+      "last_verified_run": {
+        "run_id": "cf386e367e8b",
+        "host": "ASUS TUF Gaming F16 FX607JV",
+        "verified_at_local": "2026-09-10T15:32:20+08:00",
+        "flag": "FLAG{harness-complex-web-authorized-v1}",
+        "shell_identity": "uid=65532(labuser)",
+        "evidence_files": [
+          "lab/complex_web/evidence/newhost-cf386e367e8b.json",
+          "lab/complex_web/evidence/newhost-cf386e367e8b.md",
+          "lab/complex_web/evidence/newhost-raw_http_evidence.json",
+          "lab/complex_web/evidence/newhost_runtime.json"
+        ]
+      },
+      "manifest": "lab/complex_web/manifest.json",
+      "note": "Real Docker reproduction on this host with this run's own evidence. The original author machine's run dd8964398777 is retained in the manifest as previous_verified_run, clearly labelled reference-only."
+    },
+    {
+      "id": "local-web",
+      "requirement": "local HTTP training lab with a differential SQLi oracle",
+      "source": "lab/ (in-repo, Docker compose)",
+      "status": "local-real-web-ready",
+      "verified": true,
+      "implementation": "lab/docker-compose.yml (python:3.12-slim, published only on 127.0.0.1:18088)",
+      "scope": "127.0.0.1:18088 only",
+      "success_criteria": [
+        "vulnerable build yields exactly one verified SQLi finding",
+        "fixed build yields zero findings (no false positive)"
+      ],
+      "evidence": ["docs/stress-test-results.md", "docs/stress-docker-evidence.md"],
+      "note": "Vulnerable/fixed differential exercised 10x each in tests/test_stress.py: 10/10 verified, 0 false positives."
     }
   ]
 }

@@ -1,0 +1,133 @@
+# 04 complex-web 全链报告（Docker 靶场，本机复现）
+
+日期：2026-09-10 / 主机 ASUS TUF Gaming F16 FX607JV
+靶场：`lab/complex_web/docker-compose.yml`，3 节点（edge-gateway / app-api / internal-admin），
+只发布 `127.0.0.1:18089`。
+命令：`python -m harness_mvp --scenario complex-web --target http://127.0.0.1:18089`
+
+## 运行结果
+
+```json
+{
+  "run_id": "eb65a524847a",
+  "status": "RunStatus.COMPLETED",
+  "findings": 1
+}
+```
+
+## 攻击链（facts.complex_chain）
+
+```json
+{
+  "verified": true,
+  "status": "verified",
+  "session_token_seen": true,
+  "shell_obtained": true,
+  "shell_identity": "uid=65532(labuser)",
+  "flag": "FLAG{harness-complex-web-authorized-v1}",
+  "flag_expected": "FLAG{harness-complex-web-authorized-v1}",
+  "flag_match": true
+}
+```
+
+`facts.test_evidence` 里的链式阶段：
+
+```json
+["discover", "verify", "constrained-shell-identity", "read-flag"]
+```
+
+## SQLi 差分（baseline / positive / negative）
+
+```json
+{
+  "verified": true,
+  "baseline_count": 1,
+  "positive_count": 3,
+  "negative_count": 0,
+  "proof_seen": true,
+  "public_seen": true,
+  "token_seen": true
+}
+```
+
+三种探针响应的 SHA-256（用于证明差分真实存在，而不是同一次响应重复计数）：
+
+```json
+{
+  "baseline_sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e",
+  "positive_sha256": "25c1f5a95e970a0ca5bc9f680e35e3e0c42b293cb7ccdd3d6f79b80f577cfbb5",
+  "negative_sha256": "686cf59fbf4ec0463a91c7455663d2ca51b1287bd5d457b92731860076c850ca"
+}
+```
+
+## 原始 HTTP 证据
+
+```text
+facts.raw_http_evidence 条目数：6
+步骤顺序：sqli-baseline, sqli-positive, sqli-negative, shell-whoami, shell-exec-id, read-flag
+```
+
+每一条都带 `request.method` / `request.url` / `response.status_code` /
+`response.headers` / `response.body` / `response.sha256`。样例（第 1 条）：
+
+```json
+{
+  "step": "sqli-baseline",
+  "request": {
+    "method": "GET",
+    "url": "http://127.0.0.1:18089/search?q=course",
+    "headers": {
+      "X-Harness-Client": "harness-mvp"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "Server": "BaseHTTP/0.6 Python/3.12.14",
+      "Date": "Thu, 10 Sep 2026 07:48:48 GMT",
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Length": "105",
+      "X-Training-Lab": "harness-mvp-complex",
+      "X-Training-Lab-Version": "complex-web-v1",
+      "X-Lab-Node": "edge-gateway",
+      "X-Lab-Upstream": "app-api",
+      "X-Lab-Upstream-Status": "200",
+      "X-Lab-Upstream-Node": "app-api"
+    },
+    "body": "<html><title>Complex Web Lab</title><body>Search results (1): course:public-training-record</body></html>",
+    "sha256": "f27ee83cd68e6fdce1813fb554b664e76f48aa82b73db208701dec43aa1c237e"
+  }
+}
+```
+
+## 报告开头（Markdown）
+
+```markdown
+# Harness MVP Security Assessment
+
+- Run: `eb65a524847a`
+- Target: `http://127.0.0.1:18089`
+- Scenario: `complex-web`
+- Status: **completed**
+- Findings: **1**
+
+## Findings
+
+### F-001: SQLite SQL injection with session disclosure
+- Severity: **high** | Confidence: `99%`
+```
+
+报告 JSON 顶层键：
+
+```text
+['agent_results', 'checkpoint', 'episodic_memory', 'errors', 'events', 'exploit_results', 'facts', 'findings', 'run_id', 'scenario', 'status', 'summary', 'target', 'task_tree', 'test_evidence', 'working_memory']
+```
+
+## 说明
+
+以上为**文本证据**，取自本机真实运行输出（Docker 靶场在跑的过程中直接跑 Harness）。
+完整的逐条 HTTP 请求/响应已归档在 `lab/complex_web/evidence/newhost-*.json`，
+用 `lab/complex_web/manifest.json` 的 `evidence_files` 可索引复核。
+
+这不是图片截图；本 agent 无法生成浏览器/终端截图。如需图片，请人类用户
+在本机浏览器打开 `http://127.0.0.1:18089` 自行截屏。

@@ -1,0 +1,52 @@
+# 02 check-labs（两个本地靶场 runngin 时）
+
+日期：2026-09-10 / 主机 ASUS TUF Gaming F16 FX607JV
+命令：EXPLOITGYM_ROOT=F:/course-labs/exploitgym python -m harness_mvp --check-labs
+前置：lab 与 lab/complex_web 两个 compose 均已 up -d --build，健康检查 /health 返回 200
+
+```text
+[
+  {
+    "lab_id": "docker",
+    "requirement": "container runtime",
+    "status": "ready",
+    "evidence": "server 29.7.2",
+    "next_action": ""
+  },
+  {
+    "lab_id": "local-web",
+    "requirement": "local SQLite training lab",
+    "status": "ready",
+    "evidence": "http://127.0.0.1:18088/health -> 200 <html><title>Local Training Lab</title><body>ok</body></html>",
+    "next_action": "Run local-web scenario"
+  },
+  {
+    "lab_id": "complex-web",
+    "requirement": "complex Web/network lab",
+    "status": "ready",
+    "evidence": "http://127.0.0.1:18089/health -> 200 <html><title>Complex Web Lab</title><body>ok</body></html>",
+    "next_action": "Run complex-web scenario"
+  },
+  {
+    "lab_id": "goad",
+    "requirement": "Windows domain lab",
+    "status": "not_configured",
+    "evidence": "GOAD_ROOT is not set",
+    "next_action": "Set GOAD_ROOT to an isolated GOAD checkout"
+  },
+  {
+    "lab_id": "exploitgym",
+    "requirement": "ExploitGym two-task validation",
+    "status": "catalog_ready",
+    "evidence": "root=F:\\course-labs\\exploitgym; required metadata readable",
+    "next_action": "Run the authorized lab validation"
+  },
+  {
+    "lab_id": "vulhub",
+    "requirement": "complex Web/network lab",
+    "status": "not_configured",
+    "evidence": "VULHUB_ROOT is not set",
+    "next_action": "Set VULHUB_ROOT to an authorized Vulhub checkout"
+  }
+]
+```

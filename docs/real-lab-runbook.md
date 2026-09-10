@@ -41,12 +41,23 @@ Evidence contract: `lab/complex_web/manifest.json`. Success requires recon of th
 
 | 环境 | 建议项目 | 必须记录 | 当前状态 |
 |---|---|---|---|
-| Windows 域 | [GOAD](https://github.com/Orange-Cyberdefense/GOAD) | VM 版本、域拓扑、重置方式、授权范围、权限获取 ground truth | 待在隔离主机部署 |
-| ExploitGym 任务 1 | [官方 ExploitGym](https://github.com/sunblaze-ucb/exploitgym)，`v8:sbxbrk/398773898` | 官方任务 token、镜像版本、scorer 输出、清理记录 | 待专用 Linux + Docker 主机 |
-| ExploitGym 任务 2 | 从官方 `data/task_ids/v1.txt` 另选任务 | 同上 | 待专用 Linux + Docker 主机 |
-| 复杂网络/Web | [Vulhub](https://github.com/vulhub/vulhub) 或 Argus | compose 文件、漏洞版本、重置命令、ground truth、原始证据 | local-real `lab/complex_web` chain ready |
+| Windows 域 | [GOAD](https://github.com/Orange-Cyberdefense/GOAD) | VM 版本、域拓扑、重置方式、授权范围、权限获取 ground truth | **本机不可行，未部署**（见 `lab/goad/manifest.json`）。无 hypervisor + Docker 占用 Hyper-V/WSL2 + 内存/磁盘不足 |
+| ExploitGym 任务 1 | [官方 ExploitGym](https://github.com/sunblaze-ucb/exploitgym)，`v8:sbxbrk/398773898` | 官方任务 token、镜像版本、scorer 输出、清理记录 | checkout + `catalog_ready` 完成（commit `e4123d04`，ID 在 `v1.txt` 第 867 行）；**官方 scorer 未跑，无通过记录**（见 `docs/exploitgym-official-check.md`） |
+| ExploitGym 任务 2 | `user:cybergym/arvo_18224`（已核对在 `v1.txt` 与 `sample.txt` 中） | 同上 | 已选型，未运行；与任务 1 同一组阻塞 |
+| 本地 Web | `lab/docker-compose.yml` | compose 文件、重置命令、差分证据 | **已完成**：易受攻击版 10/10 命中，修复版 0 误报（`docs/stress-test-results.md`） |
+| 复杂网络/Web | [Vulhub](https://github.com/vulhub/vulhub) 或 Argus | compose 文件、漏洞版本、重置命令、ground truth、原始证据 | **本机已完成** local-real `lab/complex_web` 全链（run `cf386e367e8b`，flag + `uid=65532`） |
 
 ExploitGym 官方 setup 需要 Docker，部分任务还需要 GDB、静态 Node、网络隔离以及 Linux 主机能力；Windows 桌面上的 Docker Desktop 不能据此宣称已经完成 ExploitGym 验收。GOAD 需要多台 Windows VM 和隔离网络。所有真实测试必须有授权，并在专用实验网络中运行。
+
+### 本机对本表的实测补充（2026-09-10）
+
+- 官方 README 的流程**不是** `eg-init` / `eg-run` / `eg-score`；`pyproject.toml` 的
+  `[project.scripts]` 里只有三个 stream renderer。当前官方流程是
+  `uv sync` → `scripts/setup/setup_data.sh` → `pre_run.py` → `examples/run_agent.py`。
+- 官方 `requires-python = ">=3.12,<3.14"`，而宿主与 WSL Ubuntu 26.04 的 Python
+  都是 **3.14.4**，两个都在区间之外；且两处都没有 `uv`。
+- 官方 LLM proxy 需要真实的 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`，本机均未配置。
+  这是 ExploitGym 无法跑出 scorer 输出的**决定性**原因。
 
 ## 交付证据格式
 

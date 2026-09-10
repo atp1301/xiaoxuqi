@@ -24,6 +24,23 @@ class DashboardTests(unittest.TestCase):
     def tearDown(self):
         self.server.shutdown(); self.server.server_close(); self.tmp.cleanup()
 
+    def wait_for_run(self, run_id, timeout=30.0):
+        """Poll a queued run until it reaches a terminal state.
+
+        The budget is deliberately generous: a demo run writes ~23 fsynced
+        checkpoints, and on hosts with a real-time AV file filter each write
+        is rescanned, stretching a 0.6s in-process run past 4s. The wait is
+        widened, but the terminal state is still asserted by the caller.
+        """
+        deadline = time.monotonic() + timeout
+        state = {"status": "queued"}
+        while time.monotonic() < deadline:
+            _, state = self.request(f"/api/runs/{run_id}")
+            if state["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.05)
+        return state
+
     def request(self, path, payload=None, content_type="application/json"):
         data = None if payload is None else (payload if isinstance(payload, bytes) else json.dumps(payload).encode())
         req = Request(self.base + path, data=data, headers={"Content-Type": content_type} if data is not None else {}, method="POST" if data is not None else "GET")
@@ -63,11 +80,7 @@ class DashboardTests(unittest.TestCase):
         status, queued = self.request("/api/runs", {"target": "demo.local", "scenario": "demo", "output": "out"})
         self.assertEqual(status, 202); self.assertIn(queued["status"], {"queued", "running"})
         run_id = queued["run_id"]
-        state = queued
-        for _ in range(40):
-            _, state = self.request(f"/api/runs/{run_id}")
-            if state["status"] in {"completed", "failed"}: break
-            time.sleep(0.05)
+        state = self.wait_for_run(run_id)
         self.assertEqual(state["status"], "completed")
         self.assertEqual(len(state["findings"]), 3)
         report_status, report = self.request(f"/api/runs/{run_id}/report")
@@ -98,11 +111,7 @@ class DashboardTests(unittest.TestCase):
         status, queued = self.request("/api/runs", {"target": "demo.local", "scenario": "demo"})
         self.assertEqual(status, 202)
         run_id = queued["run_id"]
-        for _ in range(40):
-            _, state = self.request(f"/api/runs/{run_id}")
-            if state["status"] in {"completed", "failed"}:
-                break
-            time.sleep(0.05)
+        state = self.wait_for_run(run_id)
         self.assertEqual(state["status"], "completed")
         progress_status, progress = self.request(f"/api/runs/{run_id}/progress")
         self.assertEqual(progress_status, 200)

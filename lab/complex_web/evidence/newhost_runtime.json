@@ -1,0 +1,19 @@
+{
+  "run_id": "cf386e367e8b",
+  "host": "ASUS TUF Gaming F16 FX607JV",
+  "os": "Windows 11 Home China 10.0.26200 x64",
+  "cpu": "13th Gen Intel Core i7-13650HX (14C/20T)",
+  "ram_gib": 15.63,
+  "docker_client": "29.7.2",
+  "docker_server": "29.7.2",
+  "docker_desktop": "Docker Desktop 4.90.0 (238679)",
+  "compose_project": "harness-complex-web",
+  "verified_at_local": "2026-09-10T15:32:20+08:00",
+  "verified_at_utc": "2026-09-10T07:32:20+00:00",
+  "target": "http://127.0.0.1:18089",
+  "published_ports": "127.0.0.1:18089->8088/tcp",
+  "status": "completed",
+  "flag": "FLAG{harness-complex-web-authorized-v1}",
+  "shell_identity": "uid=65532(labuser)",
+  "note": "New-host Docker reproduction. Supersedes the original-machine run for this host's acceptance."
+}

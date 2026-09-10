@@ -1,0 +1,64 @@
+# 03 Web 控制台（127.0.0.1:8765）
+
+日期：2026-09-10 / 主机 ASUS TUF Gaming F16 FX607JV
+启动：`python -m harness_mvp --serve --port 8765`（只监听 loopback）
+
+## 控制台页面
+
+```text
+GET / -> 200
+<title> 包含「Harness MVP 控制台」：True
+页面字节数：13274
+```
+
+## 提交一次 Demo 运行（POST /api/runs）
+
+```text
+POST /api/runs  body={"target": "demo.local", "scenario": "demo", "output": "out-screenshot"}
+-> 202 {"run_id": "ca921306b759", "status": "queued"}
+```
+
+轮询 `GET /api/runs/ca921306b759` 直至终态：
+
+```json
+{
+  "run_id": "ca921306b759",
+  "scenario": "demo",
+  "status": "completed"
+}
+```
+
+发现数：3
+
+## 报告（GET /api/runs/ca921306b759/report）
+
+```text
+报告字节数：6340
+包含标题 "Harness MVP Security Assessment"：True
+```
+
+报告开头：
+
+```markdown
+# Harness MVP Security Assessment
+
+- Run: `ca921306b759`
+- Target: `http://demo.local:80`
+- Scenario: `demo`
+- Status: **completed**
+- Findings: **3**
+
+```
+
+## 目录与靶场状态
+
+```text
+GET /api/catalog -> agents=8 capabilities=7
+GET /api/labs    -> docker=ready, local-web=ready, complex-web=ready, goad=not_configured, exploitgym=not_configured, vulhub=not_configured
+```
+
+## 说明
+
+以上是**文本抓取**，不是图片截图。终端渲染的操作台页面无法用图片形式
+由本 agent 生成；如需图片，请人类用户在本机浏览器打开
+`http://127.0.0.1:8765` 自行截屏。

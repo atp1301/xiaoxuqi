@@ -1,0 +1,47 @@
+# Harness 环境变量示例（新主机版，2026-09-10）
+#
+# 用法：
+#   Git Bash : export $(grep -v '^#' docs/new-host-env.example | xargs)
+#   PowerShell: 见下方注释，逐条 $env:NAME = "..."
+#
+# !!! 本文件是**示例**。不要把 .env、API Key、Windows 产品密钥、域密码提交到 Git。
+# !!! .gitignore 已忽略 .env / .env.local。
+
+# ── 外部靶场根目录（可选；未设置时 --check-labs 显示 not_configured） ──────────
+
+# GOAD：本机判定为**不可行**，故意留空。
+# 理由见 lab/goad/manifest.json 与 docs/new-host-hardware.md 第 5 节。
+# GOAD_ROOT=
+
+# ExploitGym：已 clone 到 F 盘（与仓库平级，不在仓库内，避免子模块混乱）。
+# PowerShell: $env:EXPLOITGYM_ROOT = "F:\course-labs\exploitgym"
+EXPLOITGYM_ROOT=F:/course-labs/exploitgym
+
+# Vulhub：可选，本仓库的复杂 Web 靶场是自建的 lab/complex_web，不依赖它。
+# VULHUB_ROOT=
+
+# ── 模型（可选；不配也能跑，默认 auto/deterministic） ─────────────────────────
+
+# 留空即确定性模式，不消耗任何额度。**不要**把真实 Key 写进任何被提交的文件。
+# HARNESS_LLM_API_KEY=
+# HARNESS_LLM_BASE_URL=
+# HARNESS_LLM_MODEL=
+
+# ── 压力测试计数（可选，默认值即 intro.md 第 7.2 节建议值） ──────────────────
+
+# HARNESS_STRESS_DEMO_RUNS=50
+# HARNESS_STRESS_WEB_RUNS=10
+# HARNESS_STRESS_CONCURRENT=5
+# HARNESS_STRESS_POLICY=200
+# HARNESS_STRESS_CHECKPOINT=5
+
+# 设为 1 时，`python -m tests.test_stress` 会把报告写到
+# docs/stress-test-results.md。普通 `unittest discover` **不会**写文件。
+# HARNESS_STRESS_WRITE_DOC=1
+
+# ── 本机网络备注 ─────────────────────────────────────────────────────────────
+
+# 本机无直连公网，只有 v2rayN 代理 127.0.0.1:10808。curl/git 默认读不到它，
+# 需要显式指定，例如：
+#   git -c http.proxy=http://127.0.0.1:10808 clone <url>
+# Docker 拉公共镜像走 digest 校验过的镜像站，做法见 docs/new-host-setup-log.md 第 5 节。
