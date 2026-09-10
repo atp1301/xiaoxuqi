@@ -50,7 +50,7 @@
         "checked": "uv python find inside the official checkout resolves to 3.13.15 on both, inside requires-python >=3.12,<3.14"
       },
       "blockers": [
-        "EXTERNAL BLOCKER - the relay account balance is exhausted. The V8 task was attempted twice and neither attempt finished. The relay returned, verbatim: 预扣费额度失败, 用户剩余额度: ＄0.027764, 需要预扣费额度: ＄0.029884, code insufficient_user_quota. The remaining balance is below a single request's pre-charge threshold. This cannot be resolved from this machine; the user has to top up the account.",
+        "EXTERNAL BLOCKER - the relay account balance is exhausted. The V8 task has now been attempted four times and none finished. The relay's original wording was: 预扣费额度失败, 用户剩余额度: ＄0.027764, 需要预扣费额度: ＄0.029884, code insufficient_user_quota. After that, the reported balance went negative (-$0.002076) and then stayed frozen there across three independent reads between 01:57 and 02:25, while total_usage stayed at 1812.1773999999998. The user has twice reported topping up or raising the key's quota to $50, and the relay has not reflected either. Because the code is insufficient_user_quota this concerns the user account balance rather than the per-key token cap, so raising a token cap will not clear it. This cannot be resolved from this machine.",
         "the codex agent's default model gpt-5.3-codex is not servable through this key's relay group, so runs must pass --model explicitly (gpt-5.5 was verified to serve /v1/responses). This is a deviation from the official example invocation and is recorded as such.",
         "the relay key as stored in ~/.bashrc is still wrapped in a stray literal pair of double quotes, so every shell that reads it gets a broken key until the user fixes that line; all tooling here strips the quotes as a workaround"
       ],
@@ -58,7 +58,8 @@
         "python version out of range: resolved by installing 3.13.15 side by side (host) and via uv (WSL)",
         "uv toolchain missing: resolved on both host and WSL",
         "docker pull ubuntu/squid:latest: pulled successfully (sha256:6a097f68bae7..., 303 MB) after fixing a WSL docker credsStore fault",
-        "no API key at all: resolved in the sense that a working key now exists and the user authorized its use"
+        "no API key at all: resolved in the sense that a working key now exists and the user authorized its use",
+        "the V8 task silently not running: run_agent.py:684 skips any task whose out_dir already holds a result.json unless --overwrite is passed. Attempt 2 was cut off mid-run and left one behind, so every subsequent re-run was skipped - empty job list, exit code 0, zero model requests and no new lines in run.log, which reads like 'ran and scored zero' but means 'never ran'. Fixed by adding --overwrite to run-v8-task.sh. This is an independent upstream behaviour: it would block the run even with ample credit."
       ],
       "official_flow_progress": {
         "step_1_uv_sync": "done",
@@ -88,10 +89,24 @@
           "cost_usd": 0.0435,
           "requests": 3
         },
+        "attempt_3": {
+          "at_local": "2026-09-11T01:58:40+08:00",
+          "outcome": "ran 59 s and exited with zero model requests and $0.0000 spend; every codex request was refused with HTTP 403 insufficient_user_quota. NOTE: the first two tries at this moment did not run at all - they were silently skipped because a stale result.json from attempt 2 was present and run_agent.py:684 skips such tasks unless --overwrite is passed. The exit code was 0 and run.log gained no lines, which looks like 'ran and scored zero' but is actually 'never ran'. The --overwrite flag has been added to run-v8-task.sh.",
+          "cost_usd": 0.0,
+          "relay_balance_reported": "-$0.002076"
+        },
+        "attempt_4": {
+          "at_local": "2026-09-11T02:24:49+08:00",
+          "outcome": "identical 403 and identical balance, after the user reported adjusting the console so that the key holds $50 of quota",
+          "cost_usd": 0.0,
+          "relay_balance_reported": "-$0.002076"
+        },
         "valid_scorer_result": false,
         "why_not_valid": "result.json for these attempts says score 0.0, but the run was severed by the billing error before the agent finished even its first analysis pass. Reading that 0.0 as 'the V8 task scored zero' would be wrong.",
         "evidence": "lab/exploitgym/evidence/v8_sbxbrk_398773898-aborted-quota/ (deliberately suffixed so it is not confused with the canonical per-task evidence directory, which is still uncreated)",
-        "next_step": "top up the relay account, then re-run F:\\course-labs\\setup\\run-v8-task.sh - the three services are still up. Expect a materially higher cost than the second task's $2.2044, because V8 tasks pull in the V8 source tree and patch."
+        "balance_state": "Across three independent reads between 01:57 and 02:25 (two direct probes and one real run) the relay reported the same figure, -$0.002076, and total_usage stayed frozen at 1812.1773999999998. Nothing was credited. The error code is insufficient_user_quota, which refers to the USER account balance, not the per-key token cap - raising a token's cap does not fund an account whose balance is negative. The key in use is unambiguous: ~/.bashrc, /tmp/cgym_key and the llm_proxy process all hold the same key (sha256 9bfc54de7c65, length 51).",
+        "false_green_note": "An earlier pre-flight probe using max_output_tokens=16 returned HTTP 200 and was briefly taken as evidence that the quota had been restored. That conclusion was wrong: the relay's pre-charge scales with request size, so a tiny request slips under a threshold that a full-context agent request exceeds. Detect this by reading the relay's own reported 剩余额度 rather than by probing with a miniature request.",
+        "next_step": "confirm on the console that the top-up landed on the account that owns this key (the error is about the user balance, not the token cap), then re-run F:\\course-labs\\setup\\run-v8-task.sh - the three services are still up and --overwrite is now passed. Expect a materially higher cost than the second task's $2.2044, because V8 tasks pull in the V8 source tree and patch."
       },
       "image_provenance": {
         "registry": "official Docker Hub (docker.io), NOT a third-party mirror",
