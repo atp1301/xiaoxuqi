@@ -1,19 +1,23 @@
 {
-  "environment_id": "goad-windows-domain",
+  "environment_id": "goad-light-or-minilab",
   "source": "https://github.com/Orange-Cyberdefense/GOAD",
-  "license": "GPL-3.0",
-  "requirement": "isolated Windows domain with a domain controller and multiple domain nodes",
-  "target": null,
-  "scope": "isolated Windows VM network (not created on this host)",
+  "source_revision": "",
+  "hypervisor": "none-available",
+  "lab_variant": "none-selected",
+  "scope": ["isolated lab subnet, no campus production"],
   "nodes": [],
-  "start_command": null,
-  "reset_command": null,
-  "cleanup_command": null,
+  "start_command": "",
+  "reset_command": "restore snapshots",
   "success_criteria": [
-    "asset and identity discovery",
+    "dc and multiple domain nodes up",
+    "asset and identity discovery recorded",
     "authorized privilege path evidence",
-    "data collection and report"
+    "data collection and return into course report"
   ],
+  "evidence_files": [],
+  "cleanup_command": "vagrant halt / snapshot restore",
+  "authorized_by": "course project owner",
+  "classification": "external-domain-lab",
   "domain_admin_achieved": false,
   "verified": false,
   "status": "external-not-configured",
@@ -28,12 +32,12 @@
     },
     {
       "reason": "would conflict with the running virtualization stack",
-      "detail": "Docker Desktop is already using the Hyper-V/WSL2 platform. intro.md section 4 states that VirtualBox-based GOAD frequently conflicts with Docker Desktop + WSL2 + Hyper-V and that ExploitGym and the repo Docker labs should be done first.",
+      "detail": "Docker Desktop already owns the Hyper-V/WSL2 platform. intro.md section 4 states that VirtualBox-based GOAD frequently conflicts with Docker Desktop + WSL2 + Hyper-V and that ExploitGym and the repo Docker labs should be done first.",
       "evidence": "docs/new-host-hardware.md section 5"
     },
     {
       "reason": "insufficient memory",
-      "detail": "The host has 15.63 GiB total, of which 8.1 GB is already allocated to Docker (docker info MemTotal=8125480960). MINILAB's ~8 GB figure is for the VMs alone; adding host OS and Docker would force paging. Running GOAD + ExploitGym + large Docker images together is exactly the combination intro.md section 4 forbids.",
+      "detail": "15.63 GiB total, 8.1 GB already allocated to Docker (docker info MemTotal=8125480960). MINILAB's ~8 GB is for the VMs alone; adding the host OS and Docker would force paging. Running GOAD + ExploitGym + large Docker images together is the combination intro.md section 4 forbids.",
       "evidence": "docs/new-host-hardware.md sections 1 and 5"
     },
     {
@@ -42,7 +46,7 @@
       "evidence": "docs/new-host-hardware.md section 2"
     }
   ],
-  "decision": "Do not install GOAD on this host. Recorded honestly as infeasible rather than attempted partially or simulated.",
+  "decision": "Do not install GOAD on this host. Recorded honestly as infeasible rather than partially installed or simulated.",
   "policy": "intro.md section 15: if disk or memory is clearly insufficient for both GOAD and ExploitGym, stop installing GOAD, write the reason into the hardware document, and continue with ExploitGym and the repo Docker labs.",
   "what_would_be_needed": [
     "A dedicated Linux host (or a machine that can own Hyper-V exclusively) running the official goad.sh",
@@ -50,8 +54,7 @@
     "A real domain controller VM plus at least one additional domain-joined node, booted and reachable inside an isolated network"
   ],
   "no_weaponized_material": "No AD exploitation script, credential dump, or domain hash is stored in this repository. intro.md section 3 forbids committing domain weapons or un-desensitized domain credentials; nothing of the sort was produced.",
-  "evidence_files": [
-    "lab/goad/manifest.json",
+  "docs": [
     "docs/new-host-hardware.md"
   ]
 }

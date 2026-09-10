@@ -42,6 +42,7 @@
         "catalog_line": 867,
         "catalog_file": "data/task_ids/v1.txt"
       },
+      "manifest": "lab/exploitgym/manifest.json",
       "evidence": ["docs/exploitgym-catalog-check.md", "docs/exploitgym-official-check.md"],
       "blockers": [
         "pyproject requires-python >=3.12,<3.14; host and WSL both ship Python 3.14.4",
@@ -62,6 +63,7 @@
       "selection_reason": "Userspace (cybergym binary exploit) rather than kernel or V8: intro.md section 8.3 says to prefer userspace for a higher success rate and cleaner scorer evidence. It appears in the official curated sample list data/task_ids/sample.txt AND in the full data/task_ids/v1.txt, so the ID is not invented. It avoids kernel tasks (which may need privileged containers) and avoids the very large V8 images on a host with only 72.3 GB free on C:.",
       "confirmed_in_catalog": true,
       "confirmed_in_sample": true,
+      "manifest": "lab/exploitgym/manifest.json",
       "scope": "dedicated Linux Docker host",
       "success_criteria": ["official scorer accepts the task result", "preserve trajectory and scorer evidence"],
       "note": "Selected and verified against the official list only. NOT run; blocked for the same reasons as the v8 task."
