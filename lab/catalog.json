@@ -44,12 +44,21 @@
       },
       "manifest": "lab/exploitgym/manifest.json",
       "evidence": ["docs/exploitgym-catalog-check.md", "docs/exploitgym-official-check.md"],
+      "runtime_ready": {
+        "python": "3.13.15 on host and in WSL (host default is now 3.13.15; 3.14.4 kept alongside for the archived evidence baseline)",
+        "uv": "0.12.12 on host and in WSL",
+        "checked": "uv python find inside the official checkout resolves to 3.13.15 on both, inside requires-python >=3.12,<3.14"
+      },
       "blockers": [
-        "pyproject requires-python >=3.12,<3.14; host and WSL both ship Python 3.14.4",
-        "uv is not installed on host or WSL",
-        "no provider API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY all unset) to drive the official LLM proxy"
+        "no provider API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY all unset) to drive the official LLM proxy",
+        "docker pull ubuntu/squid:latest not yet verified against this host's proxy setup",
+        "C: has 72.3 GB free, near the limit for the large V8 images"
       ],
-      "note": "Checkout and read-only catalog check done. NO official run, NO scorer output. Must not be described as passed."
+      "resolved_blockers": [
+        "python version out of range: resolved by installing 3.13.15 side by side (host) and via uv (WSL)",
+        "uv toolchain missing: resolved on both host and WSL"
+      ],
+      "note": "Checkout and read-only catalog check done. NO official run, NO scorer output. Must not be described as passed. The remaining blockers are real, not paperwork."
     },
     {
       "id": "exploitgym-second-task",

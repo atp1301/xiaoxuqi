@@ -49,7 +49,9 @@ F     452.1  479.1
 | 工具 | 状态 |
 |---|---|
 | Git | 2.52.0.windows.1 ✅ |
-| Python | 3.14.4（`C:\Users\35148\AppData\Local\Programs\Python\Python314`）✅ |
+| Python（默认） | **3.13.15**（`...\Programs\Python\Python313`）✅ 见下 |
+| Python（并存） | 3.14.4（`...\Python314`）、3.10.11（`...\Python310`）✅ |
+| uv | 0.12.12 ✅（winget `astral-sh.uv`） |
 | Docker Desktop | 4.90.0 (238679)，Client 29.7.2 ✅ |
 | Docker Engine | 29.7.2，**Linux/amd64**，`docker info` 可连 ✅ |
 | Docker 分配资源 | MemTotal 8,125,480,960 字节（8.1 GB）、NCPU 20 |

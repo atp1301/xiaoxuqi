@@ -159,3 +159,45 @@ POST 全部返回 202，结果第 5 个收到 `429 too many active runs` —— 
 `intro.md` 第 3 节明确：不得把 `catalog_ready`、进程内 Demo、旧机器 evidence
 冒充本机验收；不得把 Demo / local-web 的模拟结果写成真实外部系统突破。
 本节的措辞遵守该约束。
+
+---
+
+## 追加：切换到 Python 3.13 后的复测，以及一次**未能复现的错误**
+
+日期：2026-09-10
+
+为满足 ExploitGym 的 `requires-python = ">=3.12,<3.14"`，本机补装了 Python 3.13.15
+并设为默认（做法见 `docs/new-host-setup-log.md` 第 6 节）。切换后在本机默认解释器下
+复跑仓库测试，**共 10 轮，9 轮 `OK`，1 轮 `FAILED (errors=1)`**。
+
+| 轮次 | 命令 | 结果 |
+|---|---|---|
+| 1 | `py -3.13 -m unittest discover -s tests` | Ran 50 tests / **OK** |
+| 2 | 全新环境块下 `python -m unittest discover -s tests` | Ran 50 tests (62.529s) / **FAILED (errors=1)** |
+| 3 | 同上，输出落盘 `_run.log` | Ran 50 tests (62.959s) / **OK** |
+| 4–6 | 同上，连续 3 轮 | **OK** / **OK** / **OK** |
+| 7–11 | 同上，连续 5 轮 | **OK** ×5 |
+
+**第 2 轮那次失败，我没有捕获到是哪个用例报错。** 原因是当时为图省事把输出接了
+`Select-Object -Last 6`，只保留了末尾的汇总行，错误栈被丢掉了。这是我处理上的失误，
+不是测试本身的问题。**此后 8 轮连续通过，未能复现。**
+
+需要说明的两点：
+
+1. **这不是"已知无害的抖动"。** 我没有复现，也就没有排除它；可能是端口竞争、
+   也可能是当时 `winget` 刚改完 PATH、杀软在重扫。**在能复现并定位之前，
+   不应把它当作噪音忽略。**
+2. **第 2 轮的错误不来自压力测试。** 该轮 `[stress] summary` 显示
+   `iterations: 97, passed: 97, failed: 0`，且 `scenarios_expected_but_not_recorded: []`，
+   说明 `tests/test_stress.py` 的 8 个场景当轮全部正常记录。错误出在其余模块。
+
+**下次若再出现**：直接跑
+`python -m unittest discover -s tests 2>&1 | tee full.log`，
+保留完整输出，即可定位到具体用例。
+
+### 结论口径
+
+可以说的：**在当前默认解释器 Python 3.13.15 下，仓库测试 9/10 轮全绿，
+1 轮出现一次未能复现的用例错误，原因未查明。**
+
+不可以说的："仓库测试稳定全绿"——本轮实测不支持这个更强的说法。

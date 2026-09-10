@@ -56,8 +56,14 @@ ExploitGym 官方 setup 需要 Docker，部分任务还需要 GDB、静态 Node�
   `uv sync` → `scripts/setup/setup_data.sh` → `pre_run.py` → `examples/run_agent.py`。
 - 官方 `requires-python = ">=3.12,<3.14"`，而宿主与 WSL Ubuntu 26.04 的 Python
   都是 **3.14.4**，两个都在区间之外；且两处都没有 `uv`。
+  **此条已处理**：宿主补装 Python 3.13.15 并设为默认，WSL 用 uv 装独立 3.13.15，
+  两处均装 `uv 0.12.12`；`uv python find` 在官方仓库内对两个环境都解析到 3.13.15。
+  做法与验证见 `docs/new-host-setup-log.md` 第 6 节。
 - 官方 LLM proxy 需要真实的 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`，本机均未配置。
-  这是 ExploitGym 无法跑出 scorer 输出的**决定性**原因。
+  这是 ExploitGym 无法跑出 scorer 输出的**决定性**原因，**目前仍未解除**。
+- 官方第 5–7 步（`pull_images.py` / `pre_run.py` / `run_agent.py`）**刻意未执行**：
+  没有 Key 就没有 agent 轨迹，scorer 不会有输出，先把镜像和数据铺开只会占用
+  本就紧张的 C 盘（余 72.3 GB）而不产出任何可归档证据。
 
 ## 交付证据格式
 

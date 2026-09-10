@@ -22,7 +22,70 @@ wsl -l -v          -> Ubuntu (Stopped), docker-desktop (Stopped)
 结论：Git / Python 3.10+ / Docker 均已满足 `intro.md` 第 5.1–5.2 节要求，跳过安装。
 未安装且**本机不需要**：Vagrant、VirtualBox、VMware、gh（GOAD 已判定不可行，见硬件文档第 5 节）。
 
-Python 版本注意：本机为 **3.14.4**，高于课程要求的 3.10+。仓库零第三方依赖，实测可直接运行。
+Python 版本注意：盘点时本机为 **3.14.4**，高于课程要求的 3.10+。仓库零第三方依赖，实测可直接运行。
+（该版本后来不足以跑 ExploitGym，见下面第 6 节，已补装 3.13。）
+
+## 6. 补装 Python 3.13 与 uv（为了 ExploitGym 的 `requires-python`）
+
+ExploitGym 的 `pyproject.toml` 声明 `requires-python = ">=3.12,<3.14"`，
+而盘点时宿主与 WSL 都只有 **3.14.4**，超出上界；两处也都没有 `uv`。
+本次补装，**采用并行安装而非替换**：仓库已归档的全部证据（压力报告、
+complex-web 的 `cf386e367e8b`）都产自 3.14.4，替换默认解释器会让基线失去可复现性。
+
+```text
+# 1) 宿主：winget 并行装 3.13.15
+$ winget install --id Python.Python.3.13 --exact --scope user ...
+已成功安装
+$ py -0p
+ -V:3.14          ...\Python314\python.exe
+ -V:3.13          ...\Python313\python.exe      <- 新增
+ -V:3.10          ...\Python310\python.exe
+
+# 2) 先在 3.13 上验证仓库，确认无回归，再切换默认
+$ py -3.13 -m unittest discover -s tests
+Ran 50 tests in 64.033s
+OK
+
+# 3) 设默认：用户级 PY_PYTHON=3.13（安装器已把 Python313 写到 PATH 之前）
+$ python -VV     -> Python 3.13.15
+$ py -V          -> Python 3.13.15
+
+# 4) uv：宿主
+$ winget install --id astral-sh.uv --exact ...
+$ uv --version   -> uv 0.12.12
+
+# 5) uv：WSL（官方独立安装脚本；Ubuntu 26.04 自带 python3 无 pip）
+$ wsl ... curl -LsSf https://astral.sh/uv/install.sh | sh
+$ wsl ... uv --version -> uv 0.12.12        # ~/.local/bin 已在登录 PATH 上
+
+# 6) WSL：uv 托管的独立 CPython 3.13.15，不动 /usr/bin/python3
+$ wsl ... uv python install 3.13
+Installed Python 3.13.15 in 2.89s
+$ wsl ... python3.13 -VV -> Python 3.13.15
+```
+
+**验证（决定性）** —— 让 `uv` 在官方仓库里按 `requires-python` 自行解析：
+
+```text
+$ cd /mnt/f/course-labs/exploitgym && uv python find      # WSL
+/home/zjr/.local/share/uv/python/cpython-3.13-linux-x86_64-gnu/bin/python3.13
+
+$ uv python find                                          # Windows 宿主
+C:\Users\35148\AppData\Local\Programs\Python\Python313\python.exe
+```
+
+两处都在 `[3.12,3.14)` 区间内，ExploitGym 的 Python 版本阻塞消除。
+
+**刻意没做的两件事：**
+
+1. **WSL 的 `/usr/bin/python3` 保持 3.14.4 未动。** 覆盖 Ubuntu 的系统 `python3`
+   会影响 apt 等系统组件；3.13 只以 `python3.13` 形式存在，用 `uv` 调度即可。
+2. **没删 Windows 安装器写进 PATH 的 `Python313\Lib` 与 `Python313\libs`。**
+   这两条是无用项（目录不该上 PATH），但清理需改机器级 PATH，风险大于收益；
+   它们不改变 `python` 的解析结果。
+
+**仍然阻塞的**：ExploitGym 官方评测还缺服务商 API Key，见
+`docs/exploitgym-official-check.md` 第 2.4 节。本次只解除了环境层面（Python + uv）的阻塞。
 
 ## 2. 阻塞事件：火绒把仓库源文件当病毒隔离（已解决）
 
