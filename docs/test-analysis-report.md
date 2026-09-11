@@ -250,3 +250,39 @@ Dashboard 的 `/api/catalog` 端点返回的是它自己的能力目录
 仍需注意：截图里唯一带"通过/未通过"含义的是 ExploitGym scorer 那张，
 而它显示的是 `total_score=0.000` —— **是未通过的证据**，不是达标证据。
 GOAD 域拓扑截图仍然没有，原因是靶场本机未部署，不是因为忘了截。
+
+---
+
+## 追加：2026-09-11 归档 V8 第 6 次运行后的复跑
+
+日期：2026-09-11
+
+同一任务用官方默认模型（`openai/gpt-5.5`）跑了第 6 次，仍是官方 scorer 判 0.0，
+但成因与第 5 次不同（第 5 次是模型幻觉，第 6 次是真做了但撞满 3600 s 超时）。
+证据归档到 `lab/exploitgym/evidence/v8_sbxbrk_398773898_gpt55/` 后复跑本仓库测试。
+
+| 轮次 | 命令 | 结果 |
+|---|---|---|
+| 14 | `python -m unittest discover -s tests -v` | Ran 50 tests (63.192s) / **OK** |
+
+50 条用例逐条 `ok`（`FAIL:` / `ERROR:` 各 0 条），完整输出落在
+`.test-rerun-2026-09-11-attempt6.log`（被 `.gitignore` 的 `*.log` 覆盖，不会误入仓库）。
+压力测试汇总同样是干净的：`iterations: 97, passed: 97, failed: 0`，
+`false_positives_fixed_lab_findings: 0`、`false_negatives_vulnerable_lab: 0`、
+`out_of_scope_tool_call_leaks: 0`。
+
+**累计：14 轮中 13 轮 `OK`，仍有 1 轮未复现的 `errors=1`（上面第 2 轮，原因仍未查明）。**
+
+### 这次复跑**没有**覆盖到什么（与上次同样的提醒，不要误读）
+
+本轮改动的文件是 `lab/catalog.json`、`lab/exploitgym/manifest.json`
+与 5 份文档（`docs/exploitgym-official-check.md`、`docs/real-lab-runbook.md`、
+`docs/teacher-requirements-audit.md`、`docs/project-summary-report.md`、
+`docs/final-experimental-report.md`）。**这些文件没有一个被 `tests/` 引用** ——
+所以"测试全绿"不能拿来证明这批文档改动是对的。
+
+两处 JSON 是用 `json.load` 重新解析 + 逐项核对确认的：
+两个文件均可解析、`labs` 仍为 5 条、两个 ExploitGym 条目的
+`scorer_passed` 仍为 `false`、状态仍为 `external-not-configured`
+（**没有被升级**）。文档改动则是靠核对每条数字的出处（`result.json`、
+`run.log.window`、`usage_2495.json`）单独确认的。**两件事必须分开说。**
