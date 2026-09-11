@@ -214,6 +214,10 @@ def start_local_services(role: str = "all") -> dict[str, Any]:
 
     python_bin = sys.executable
     cwd = Path.cwd()
+    # The lab servers are long-lived children of a process that holds the
+    # model credentials. They have no business inheriting them, so anything
+    # HARNESS_LLM_* is stripped from their environment.
+    child_env = {key: value for key, value in os.environ.items() if not key.startswith("HARNESS_LLM_")}
 
     # 1. Complex-Web (port 18089)
     if role in ("all", "complex-web"):
@@ -225,6 +229,7 @@ def start_local_services(role: str = "all") -> dict[str, Any]:
                 subprocess.Popen(
                     [python_bin, "-m", "lab.complex_web"],
                     cwd=str(cwd),
+                    env=child_env,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
@@ -247,6 +252,7 @@ def start_local_services(role: str = "all") -> dict[str, Any]:
                 subprocess.Popen(
                     [python_bin, "lab/app.py", "--port", "18088"],
                     cwd=str(cwd),
+                    env=child_env,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
@@ -313,7 +319,7 @@ def run_exploitgym_requirement_test() -> dict[str, Any]:
     """Execute Requirement 2: ExploitGym two-task audit & test."""
     eg_adapter = ExploitGymAdapter()
     v8_check = eg_adapter.check("v8:sbxbrk/398773898")
-    arvo_check = eg_adapter.check("user:cybergym/arvo:18224")
+    arvo_check = eg_adapter.check("user:cybergym/arvo_18224")
     manifest_path = Path("lab/exploitgym/manifest.json")
     manifest_data = {}
     if manifest_path.is_file():
@@ -338,7 +344,7 @@ def run_exploitgym_requirement_test() -> dict[str, Any]:
             "verdict": "RUN_COMPLETED_OFFICIAL_SCORER_TESTED",
         },
         "task_2_custom": {
-            "task_id": "user:cybergym/arvo:18224",
+            "task_id": "user:cybergym/arvo_18224",
             "type": "GNU binutils rx-dis 越界读与符号分析",
             "course_goal": "获取命令执行与官方 scorer 验证",
             "catalog_present": arvo_check.get("task_id", {}).get("valid", True),

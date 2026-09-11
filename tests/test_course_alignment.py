@@ -78,6 +78,17 @@ class CourseAlignmentTests(unittest.TestCase):
         categories = {item.category for item in TOOL_REGISTRY.values()}
         self.assertEqual(categories, {"recon", "exploit", "post-exploit"})
 
+    def test_model_is_consulted_at_exactly_two_call_sites(self):
+        """Locks the latency contract: two model calls per run, no more."""
+        from harness_mvp.dashboard import build_catalog
+
+        catalog = build_catalog()
+        self.assertEqual(catalog["llm"]["call_sites"], ["vuln", "report"])
+        self.assertEqual(catalog["llm"]["modes"], ["auto", "deterministic", "llm"])
+        self.assertNotIn("api_key", catalog["llm"])
+        self.assertTrue(catalog["llm"]["base_url_host"])
+        self.assertNotIn("/v1", catalog["llm"]["base_url_host"])
+
     def test_knowledge_has_four_rag_categories(self):
         kb = KnowledgeBase(include_report_cases=False)
         found = {entry.category for entry in kb.entries}

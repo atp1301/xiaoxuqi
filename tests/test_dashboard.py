@@ -1,10 +1,12 @@
 import json
+import os
 import tempfile
 import threading
 import time
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -16,6 +18,11 @@ class DashboardTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         DashboardHandler.runs = {}
         DashboardHandler.output_root = Path(self.tmp.name).resolve()
+        # Pinned so a developer shell that exports HARNESS_LLM_* cannot turn
+        # these runs into real network calls. The inherited value is restored in
+        # tearDown because it is class-level state shared across test modules.
+        self._previous_default_mode = DashboardHandler.default_mode
+        DashboardHandler.default_mode = "deterministic"
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), DashboardHandler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -23,6 +30,7 @@ class DashboardTests(unittest.TestCase):
 
     def tearDown(self):
         self.server.shutdown(); self.server.server_close(); self.tmp.cleanup()
+        DashboardHandler.default_mode = self._previous_default_mode
 
     def wait_for_run(self, run_id, timeout=30.0):
         """Poll a queued run until it reaches a terminal state.
@@ -89,6 +97,49 @@ class DashboardTests(unittest.TestCase):
         list_status, listing = self.request("/api/runs")
         self.assertEqual(list_status, 200)
         self.assertTrue(any(item["run_id"] == run_id for item in listing["runs"]))
+
+    def test_run_mode_is_validated_echoed_and_never_leaks_the_key(self):
+        status, queued = self.request(
+            "/api/runs", {"target": "demo.local", "scenario": "demo", "mode": "deterministic"}
+        )
+        self.assertEqual(status, 202)
+        self.assertEqual(queued["mode"], "deterministic")
+        run_id = queued["run_id"]
+        state = self.wait_for_run(run_id)
+        self.assertEqual(state["mode"], "deterministic")
+        _, listing = self.request("/api/runs")
+        self.assertEqual(next(i for i in listing["runs"] if i["run_id"] == run_id)["mode"], "deterministic")
+
+        _, catalog = self.request("/api/catalog")
+        self.assertIn("llm", catalog)
+        self.assertEqual(catalog["llm"]["call_sites"], ["vuln", "report"])
+        self.assertIn("configured", catalog["llm"])
+
+        secret = "sk-must-never-appear-in-any-response"
+        with patch.dict(os.environ, {"HARNESS_LLM_API_KEY": secret}, clear=False):
+            _, catalog = self.request("/api/catalog")
+            _, listing = self.request("/api/runs")
+        blob = json.dumps([catalog, listing, queued])
+        self.assertNotIn(secret, blob)
+
+    def test_unknown_mode_is_rejected_synchronously(self):
+        for bogus in ("turbo", "", 7, None):
+            status, body = self.request("/api/runs", {"target": "demo.local", "scenario": "demo", "mode": bogus})
+            self.assertEqual(status, 400, bogus)
+            self.assertIn("mode", body["error"])
+
+    def test_llm_mode_without_credentials_is_a_synchronous_400(self):
+        """A missing key must fail the request, not silently become a failed run."""
+        cleared = {
+            key: "" for key in ("HARNESS_LLM_API_KEY", "HARNESS_LLM_BASE_URL", "HARNESS_LLM_MODEL")
+        }
+        with patch.dict(os.environ, cleared, clear=False):
+            status, body = self.request(
+                "/api/runs", {"target": "demo.local", "scenario": "demo", "mode": "llm"}
+            )
+        self.assertEqual(status, 400)
+        self.assertIn("HARNESS_LLM_API_KEY", body["error"])
+        self.assertEqual(DashboardHandler.runs, {}, "a rejected request must not register a run")
 
     def test_content_type_and_body_limits(self):
         self.assertEqual(self.request("/api/runs", b"{}", "text/plain")[0], 415)

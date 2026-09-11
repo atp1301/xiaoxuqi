@@ -107,7 +107,7 @@ class StressTests(unittest.TestCase):
         for _ in range(DEMO_RUNS):
             with tempfile.TemporaryDirectory() as directory:
                 started = time.perf_counter()
-                state = Orchestrator().run(output_dir=directory)
+                state = Orchestrator(mode="deterministic").run(output_dir=directory)
                 wall = time.perf_counter() - started
                 ok = (state.status == RunStatus.COMPLETED
                       and len(state.findings) == 3
@@ -126,7 +126,7 @@ class StressTests(unittest.TestCase):
             for _ in range(WEB_RUNS):
                 with tempfile.TemporaryDirectory() as directory:
                     started = time.perf_counter()
-                    state = Orchestrator(adapter=HttpLabAdapter()).run(target, "local-web", directory)
+                    state = Orchestrator(mode="deterministic", adapter=HttpLabAdapter()).run(target, "local-web", directory)
                     wall = time.perf_counter() - started
                     validation = state.findings[0].metadata["validation"] if state.findings else {}
                     # agents.py 把 differential 的键平铺进 validation，不是嵌套的。
@@ -143,7 +143,7 @@ class StressTests(unittest.TestCase):
             for _ in range(WEB_RUNS):
                 with tempfile.TemporaryDirectory() as directory:
                     started = time.perf_counter()
-                    state = Orchestrator(adapter=HttpLabAdapter()).run(target, "local-web", directory)
+                    state = Orchestrator(mode="deterministic", adapter=HttpLabAdapter()).run(target, "local-web", directory)
                     wall = time.perf_counter() - started
                     record("local-web-fixed", wall, len(state.findings), len(state.events), not state.findings)
                     self.assertEqual(state.findings, [], "误报：修复版仍报出 finding")
@@ -154,7 +154,7 @@ class StressTests(unittest.TestCase):
         for _ in range(WEB_RUNS):
             with running_lab() as lab, tempfile.TemporaryDirectory() as directory:
                 started = time.perf_counter()
-                state = Orchestrator(adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
+                state = Orchestrator(mode="deterministic", adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
                 wall = time.perf_counter() - started
                 chain = state.exploit_results[0] if state.exploit_results else {}
                 ok = (state.status == RunStatus.COMPLETED and len(state.findings) == 1
@@ -169,7 +169,7 @@ class StressTests(unittest.TestCase):
         for _ in range(WEB_RUNS):
             with running_lab(fixed=True) as lab, tempfile.TemporaryDirectory() as directory:
                 started = time.perf_counter()
-                state = Orchestrator(adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
+                state = Orchestrator(mode="deterministic", adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
                 wall = time.perf_counter() - started
                 record("complex-web-fixed", wall, len(state.findings), len(state.events), not state.findings)
                 self.assertEqual(state.findings, [], "误报：修复版仍报出 finding")
@@ -322,7 +322,7 @@ class StressTests(unittest.TestCase):
                 policy = PolicyEngine()
                 flaky = FlakyAdapter(DemoLabAdapter(policy))
                 started = time.perf_counter()
-                first = Orchestrator(policy=policy, adapter=flaky).run(output_dir=directory)
+                first = Orchestrator(mode="deterministic", policy=policy, adapter=flaky).run(output_dir=directory)
                 interrupted_wall = time.perf_counter() - started
                 self.assertEqual(flaky.failures, 1, "注入的瞬时失败没有被触发")
                 self.assertTrue(any(event.message == "agent failed; retrying" for event in first.events),
@@ -332,7 +332,7 @@ class StressTests(unittest.TestCase):
                 self.assertTrue(checkpoint.exists(), "中断后没有留下 checkpoint")
 
                 started = time.perf_counter()
-                resumed = Orchestrator().run(resume_from=checkpoint, output_dir=directory)
+                resumed = Orchestrator(mode="deterministic").run(resume_from=checkpoint, output_dir=directory)
                 resumed_wall = time.perf_counter() - started
 
                 ok = (resumed.run_id == first.run_id and resumed.status == RunStatus.COMPLETED

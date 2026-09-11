@@ -14,7 +14,7 @@ from lab.complex_web.server import running_lab
 class ComplexWebLabTests(unittest.TestCase):
     def test_full_chain_discovers_verifies_identity_and_flag(self):
         with running_lab() as lab, tempfile.TemporaryDirectory() as directory:
-            state = Orchestrator(adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
+            state = Orchestrator(mode="deterministic", adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
             self.assertEqual(state.status, RunStatus.COMPLETED)
             self.assertEqual(len(state.findings), 1)
             self.assertEqual(state.findings[0].source, "complex-web")
@@ -42,7 +42,7 @@ class ComplexWebLabTests(unittest.TestCase):
 
     def test_parameterized_repair_blocks_token_and_flag(self):
         with running_lab(fixed=True) as lab, tempfile.TemporaryDirectory() as directory:
-            state = Orchestrator(adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
+            state = Orchestrator(mode="deterministic", adapter=ComplexWebAdapter()).run(lab.gateway_url, "complex-web", directory)
             self.assertEqual(state.status, RunStatus.COMPLETED)
             self.assertEqual(state.findings, [])
             self.assertEqual(next(item.status for item in state.agent_results if item.agent == "exploit"), AgentStatus.SKIPPED)

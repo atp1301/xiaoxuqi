@@ -200,7 +200,11 @@ class Orchestrator:
         if "vuln" in remaining:
             state.findings = []
             state.facts.pop("llm_advisory", None)
-        if "exploit" in remaining:
+            # A resumed run must never carry a model reading of evidence that no
+            # longer exists: the grading in these keys describes the findings
+            # that were just discarded.
+            state.facts.pop("llm_findings_interpretation", None)
+            state.working_memory.pop("llm_status", None)
             state.exploit_results = []
             state.facts.pop("complex_chain", None)
             state.facts.pop("raw_http_evidence", None)
@@ -209,6 +213,7 @@ class Orchestrator:
             state.facts.pop("post_exploit", None)
         if "report" in remaining:
             state.report_paths = {}
+            state.facts.pop("llm_risk_brief", None)
 
     def _select_adapter(self, scenario: str) -> None:
         if self._adapter_injected:
@@ -231,8 +236,35 @@ class Orchestrator:
             callback(deepcopy(state), deepcopy(statuses))
 
     def _think(self, state: RunState, step: PlanStep, attempt: int) -> str:
+        """Produce the ReAct thought for a step.
+
+        Two sources, and the difference matters for honesty. `_THOUGHTS` is
+        fixed deterministic narration — it is *not* model reasoning and is
+        labelled as such wherever it is displayed. Only the `exploit` step
+        quotes a model, because by then the `vuln` step's interpretation of the
+        measured evidence already exists, so the quote costs no extra call.
+        """
         prefix = f"{OPERATOR_ROLE} [{step.agent} attempt {attempt}] "
+        if step.agent == "exploit":
+            narration = self._interpretation_narration(state)
+            if narration:
+                return prefix + f"[model risk reading, not evidence] {narration}"
         return prefix + _THOUGHTS.get(step.agent, step.name)
+
+    @staticmethod
+    def _interpretation_narration(state: RunState) -> str:
+        """The model's own words about the findings, if it produced any."""
+        fact = state.facts.get("llm_findings_interpretation")
+        if not isinstance(fact, dict) or not fact.get("available"):
+            return ""
+        narratives = []
+        for finding in state.findings:
+            interpretation = finding.metadata.get("interpretation")
+            if isinstance(interpretation, dict) and interpretation.get("source") == "model":
+                narrative = interpretation.get("narrative")
+                if narrative:
+                    narratives.append(f"{finding.finding_id}: {narrative}")
+        return " | ".join(narratives)[:1200]
 
     def _synthesize(self, state: RunState, step: PlanStep, result: AgentResult) -> None:
         names = [item.agent for item in self.plan()]
@@ -301,6 +333,16 @@ class Orchestrator:
             if scenario not in {"demo", "local-web", "complex-web"}:
                 raise ValueError(f"unsupported scenario: {scenario}")
             state = RunState(target=parsed, scenario=scenario, run_id=run_id or uuid4().hex[:12])
+        # Recorded in memory rather than on the state dataclass so it rides the
+        # existing checkpoint serialization; the report renders it so a reader
+        # can tell whether a model participated in this run at all. `auto` is
+        # recorded with whether a client was actually attached, because "auto
+        # without credentials" behaves exactly like `deterministic`.
+        state.working_memory["agent_mode"] = {
+            "requested": self.mode,
+            "model_attached": self.llm is not None,
+            "effective": "llm" if self.llm is not None else "deterministic",
+        }
 
         if scenario not in {"demo", "local-web", "complex-web"}:
             raise ValueError(f"unsupported scenario: {scenario}")
@@ -320,7 +362,6 @@ class Orchestrator:
         else:
             first_incomplete = 0
             statuses = [self._status_record(step) for step in plan]
-            state.working_memory["agent_mode"] = self.mode if self.llm is None else "llm-advisory"
             state.working_memory["plan"] = plan_dicts
             state.working_memory["task_tree"] = tree_dicts
             state.working_memory["operator"] = OPERATOR_ROLE
@@ -385,6 +426,19 @@ class Orchestrator:
                     status=result.status.value,
                     observations=result.observations,
                 )
+                if step.agent == "vuln":
+                    # The model reads the findings only after the probes have
+                    # run, so its reading is published as a thought *after* the
+                    # observation rather than pretending it was known up front.
+                    narration = self._interpretation_narration(state)
+                    if narration:
+                        state.add_event(
+                            "thought",
+                            f"{OPERATOR_ROLE} [model-authored risk reading, not evidence] {narration}",
+                            agent="vuln",
+                            attempt=attempt,
+                            model_authored=True,
+                        )
                 state.record_episode(step.agent, thought, action, result.summary, result.status.value, attempt=attempt)
                 self._synthesize(state, step, result)
                 if result.status != AgentStatus.FAILED:

@@ -14,6 +14,7 @@ from uuid import uuid4
 from .exploitgym import ExploitGymAdapter
 from .knowledge import DEFAULT_ENTRIES, KnowledgeBase
 from .labs import check_labs
+from .llm import LLMClient, ModelConfig
 from .models import RunState
 from .orchestrator import Orchestrator
 from .policy import PolicyEngine, PolicyViolation, parse_target
@@ -51,6 +52,10 @@ class _RunRecord:
         default_factory=lambda: [{"name": name, "agent": name, "status": "queued"} for name in STEP_NAMES]
     )
     thread: threading.Thread | None = None
+    # Appended last on purpose: `serve()` constructs this positionally for the
+    # initial state, so inserting a field above would silently shift every
+    # field after it.
+    mode: str = "auto"
 
 
 def _completed_steps(state: RunState) -> list[dict[str, str]]:
@@ -88,6 +93,32 @@ def _progress_from_record(record: "_RunRecord") -> dict[str, Any]:
         "completed": completed,
         "total": len(STEP_NAMES),
         "operator": "协调智能体 Operator：接收各 Agent 汇报 → 综合 → 分配任务",
+    }
+
+
+def llm_catalog_block() -> dict[str, Any]:
+    """Describe the model integration without ever exposing the key.
+
+    Only the host of the base URL is reported: the path can carry an
+    account-specific identifier, and the key must not leave the process at all.
+    """
+    config = ModelConfig.from_env()
+    try:
+        host = urlparse(config.base_url).hostname or config.base_url
+    except ValueError:
+        host = "<unparsable>"
+    try:
+        timeout = float(os.getenv("HARNESS_LLM_TIMEOUT", ""))
+    except ValueError:
+        timeout = None
+    return {
+        "configured": config.configured,
+        "model": config.model,
+        "provider": config.provider,
+        "base_url_host": host,
+        "modes": ["auto", "deterministic", "llm"],
+        "call_sites": ["vuln", "report"],
+        "timeout_seconds": timeout,
     }
 
 
@@ -131,7 +162,13 @@ def build_catalog() -> dict[str, Any]:
                 "summary": "检查本地 checkout 与任务 ID 是否在清单中，不运行 benchmark。",
                 "status": "只读",
             },
+            {
+                "title": "模型参与决策",
+                "summary": "mode=llm 时模型在 vuln 步定级并写风险叙述、在 report 步写风险简报；确定性差分是唯一事实来源。",
+                "status": "可用（需配置 HARNESS_LLM_*）",
+            },
         ],
+        "llm": llm_catalog_block(),
         "agents": [
             {"name": "operator", "label": "协调者", "summary": "接收各 Agent 汇报，综合观察后分配下一步任务。", "role": "coordinator"},
             {"name": "recon", "label": "侦察", "summary": "探测固定训练路径，记录响应摘要与哈希。"},
@@ -172,6 +209,8 @@ def build_catalog() -> dict[str, Any]:
             "不接受任意攻击载荷，不读取宿主文件",
             "输出目录不能跳出 dashboard output root",
             "ExploitGym / GOAD / Vulhub 检查均为只读，不启动环境",
+            "模型不能新增 finding、不能设置 exploitable、不能改变 verified 结论",
+            "模型不能把已实测验证的漏洞降级，也不能把发送内容/API key 写入报告",
         ],
     }
 
@@ -182,6 +221,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     output_root = Path("out").resolve()
     lock = threading.RLock()
     knowledge = KnowledgeBase()
+    default_mode = "auto"
 
     def _send(self, status: int, body: bytes | str, content_type: str = "application/json") -> None:
         encoded = body if isinstance(body, bytes) else body.encode("utf-8")
@@ -237,6 +277,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "status": record.status,
                 "target": record.target,
                 "scenario": record.scenario,
+                "mode": record.mode,
                 "progress": _progress_from_record(record),
                 "errors": list(record.errors),
                 "report_url": f"/api/runs/{record.run_id}/report",
@@ -247,6 +288,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             state_payload["orchestrator_run_id"] = state_payload.get("run_id")
             state_payload["run_id"] = record.run_id
             state_payload["status"] = record.status
+            state_payload["mode"] = record.mode
             state_payload["progress"] = payload["progress"]
             state_payload["report_url"] = payload["report_url"]
             if record.errors:
@@ -262,6 +304,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "status": record.status,
                     "target": record.target,
                     "scenario": record.scenario,
+                    "mode": record.mode,
                     "finding_count": 0 if record.state is None else len(record.state.findings),
                 }
                 for record in cls.runs.values()
@@ -293,7 +336,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             record.status = "running"
             record.steps[0]["status"] = "running"
         try:
-            state = Orchestrator(mode="deterministic").run(
+            state = Orchestrator(mode=record.mode).run(
                 record.target,
                 record.scenario,
                 record.output_dir,
@@ -492,13 +535,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 raise ValueError("target and scenario must be strings")
             if scenario not in {"demo", "local-web", "complex-web"}:
                 raise ValueError("unsupported scenario")
+            # Validated here so an unusable mode is a synchronous 400.  Left to
+            # the worker it would raise inside Orchestrator.__init__ and surface
+            # only as an opaque failed run.
+            mode = payload.get("mode", self.default_mode)
+            if not isinstance(mode, str) or mode not in {"auto", "deterministic", "llm"}:
+                raise ValueError("mode must be auto, deterministic or llm")
+            if mode == "llm" and not ModelConfig.from_env().configured:
+                raise ValueError(
+                    "mode 'llm' requires HARNESS_LLM_API_KEY, HARNESS_LLM_BASE_URL and HARNESS_LLM_MODEL"
+                )
             PolicyEngine().require_target(parse_target(target))
             output_dir = self._resolve_output(payload.get("output"))
         except (ValueError, TypeError, PolicyViolation) as exc:
             self._send_json(400, {"error": str(exc)})
             return
 
-        record = _RunRecord(uuid4().hex[:12], target, scenario, output_dir)
+        record = _RunRecord(
+            run_id=uuid4().hex[:12],
+            target=target,
+            scenario=scenario,
+            output_dir=output_dir,
+            mode=mode,
+        )
         worker = threading.Thread(
             target=self._worker,
             args=(record,),
@@ -525,21 +584,26 @@ def serve(
     port: int = 8765,
     output_dir: str = "out",
     initial_state: RunState | None = None,
+    default_mode: str = "auto",
 ) -> None:
     if host not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("dashboard must bind to a loopback host")
+    if default_mode not in {"auto", "deterministic", "llm"}:
+        raise ValueError("mode must be auto, deterministic or llm")
     DashboardHandler.output_dir = Path(output_dir)
     DashboardHandler.output_root = Path(output_dir).resolve()
+    DashboardHandler.default_mode = default_mode
     if initial_state:
         record = _RunRecord(
-            initial_state.run_id,
-            initial_state.target.address,
-            initial_state.scenario,
-            str(DashboardHandler.output_root),
-            initial_state.status.value,
-            initial_state,
-            [],
-            _completed_steps(initial_state),
+            run_id=initial_state.run_id,
+            target=initial_state.target.address,
+            scenario=initial_state.scenario,
+            output_dir=str(DashboardHandler.output_root),
+            status=initial_state.status.value,
+            state=initial_state,
+            errors=[],
+            steps=_completed_steps(initial_state),
+            mode=default_mode,
         )
         with DashboardHandler.lock:
             DashboardHandler.runs[initial_state.run_id] = record

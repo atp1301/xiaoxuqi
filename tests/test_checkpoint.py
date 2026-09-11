@@ -18,12 +18,12 @@ class CheckpointRecoveryTests(unittest.TestCase):
     def test_failed_step_can_resume_with_a_repaired_adapter(self):
         policy = PolicyEngine()
         with tempfile.TemporaryDirectory() as directory:
-            interrupted = Orchestrator(policy=policy, adapter=AlwaysFailAdapter()).run(output_dir=directory)
+            interrupted = Orchestrator(mode="deterministic", policy=policy, adapter=AlwaysFailAdapter()).run(output_dir=directory)
             self.assertEqual(interrupted.status, RunStatus.FAILED)
             checkpoint = Path(interrupted.checkpoint_path)
             self.assertTrue(checkpoint.is_file())
 
-            resumed = Orchestrator(policy=policy, adapter=DemoLabAdapter(policy)).run(resume_from=checkpoint, output_dir=directory)
+            resumed = Orchestrator(mode="deterministic", policy=policy, adapter=DemoLabAdapter(policy)).run(resume_from=checkpoint, output_dir=directory)
             self.assertEqual(resumed.run_id, interrupted.run_id)
             self.assertEqual(resumed.status, RunStatus.COMPLETED)
             self.assertEqual(len(resumed.findings), 3)
@@ -32,13 +32,13 @@ class CheckpointRecoveryTests(unittest.TestCase):
 
     def test_unsupported_checkpoint_schema_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
-            state = Orchestrator().run(output_dir=directory)
+            state = Orchestrator(mode="deterministic").run(output_dir=directory)
             checkpoint = Path(state.checkpoint_path)
             payload = json.loads(checkpoint.read_text(encoding="utf-8"))
             payload["schema_version"] = 999
             checkpoint.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "checkpoint schema"):
-                Orchestrator().run(resume_from=checkpoint, output_dir=directory)
+                Orchestrator(mode="deterministic").run(resume_from=checkpoint, output_dir=directory)
 
 
 if __name__ == "__main__":

@@ -100,15 +100,17 @@ flowchart LR
 
 - `ReconAgent` 固定探测五个路径，把每个响应的 `__dict__` 放入共享 facts，并根据是否存在低于 500 的响应设置 `reachable`。
 - `VulnAgent` 在 Demo 中读取固定教学标记；在 local-web 中根据 baseline、固定正向输入和固定负向输入造成的真实结果差异，以及虚构课程 proof，生成 SQLite SQLi CWE-89 Finding。Demo 发现标为 `demo-simulated`；local-web 发现标为 `http-lab`，并保存检索分数、请求证据哈希和验证状态。
-- 当 `LLMClient` 存在时，Vuln Agent 把已观测的端点摘要交给模型，要求返回 `risk_summary`、`recommended_next_step`、`confidence` JSON。模型建议只被存档，不替代确定性规则，也不产生载荷。
+- 当 `LLMClient` 存在时，Vuln Agent 把**实测差分之后**的 finding 简报交给模型，模型只能返回 `finding_id`/`severity`/`confidence`/`narrative` 四个键。校验层丢弃其余所有键并记入 `rejected`，因此模型无法新增 finding、无法设置 `exploitable`、无法改变 `verified` 结论；`confidence` 被钳制在实测锁定的区间内（已验证 `[0.90, 0.99]`，验证失败 `[0.30, 0.40]`，无实测 `[0.40, 0.70]`），已验证的漏洞不允许被降到 `high` 以下。调用失败时回退确定性定级，并写入 `llm_findings_interpretation.available = false` 与错误原因。
 - `ExploitAgent` 没有发现时返回 `skipped`；local-web SQLi 经过 `exploit_validate_sqlite` 策略门禁，以及 baseline/正向/负向固定 GET 差分验证，输出 `verified` 或 `failed`；验证过程抛错时 Agent 返回 `failed` 并使整次运行失败。Demo 或其他发现仍输出 `simulated`，不发送任意载荷。
-- `ReportAgent` 调用 `build_report()`，为编排器提供报告汇总结果。
+- `ReportAgent` 调用 `build_report()`，并在 `LLMClient` 存在时额外向模型索取风险简报（`overall_risk`、`executive_summary`、`prioritized_actions`、`limitations`），同样经 `validate_risk_brief` 逐字段校验。简报失败**不**影响 Agent 返回 `SUCCESS`——报告必须写出来。
 
 `make_agents()` 将适配器、策略、知识库和可选模型组装成四个 Agent。当前 Agent 是串行共享上下文，尚无并行任务树、独立上下文、动态重规划、后渗透或代码审计角色。
 
 ### 4.5 编排：`harness_mvp/orchestrator.py`
 
-构造函数支持注入 Policy、适配器、知识库和 LLM 客户端。`mode=llm` 在没有 `HARNESS_LLM_API_KEY` 时立即报配置错误；`auto` 在有 Key 时启用 advisory，否则退回确定性模式；`deterministic` 永不使用模型。
+构造函数支持注入 Policy、适配器、知识库和 LLM 客户端。`mode=llm` 在没有 `HARNESS_LLM_API_KEY` 时立即报配置错误；`auto` 在有 Key 时附上客户端，否则等同 `deterministic`；`deterministic` 永不使用模型。实际参与情况记入 `working_memory["agent_mode"]`（`requested` / `model_attached` / `effective`），报告头部据此渲染——**请求了 llm 但两次调用都失败时会写明"模型被调用但全部失败，本次为确定性运行"**，不会把请求当成本地发生过的事。
+
+模型调用恰好两处：`vuln` 步定级、`report` 步写简报，`build_catalog()["llm"]["call_sites"]` 锁住该契约。
 
 `run()` 先解析目标，再根据场景选择适配器，创建 `RunState` 并记录计划。每步循环最多两次，异常会被转换为失败的 `AgentResult`，同时写入 `state.errors` 和 `agent failed; retrying` 事件。Recon 最终失败会清空攻击面并继续；Vuln 或 Exploit 失败会留下反应事件并让报告包含失败信息。只要任一最终 Agent 结果是 `failed`，运行整体就是 `FAILED`，否则是 `COMPLETED`。
 
@@ -116,15 +118,23 @@ flowchart LR
 
 ### 4.6 报告：`harness_mvp/report.py`
 
-`build_report()` 统计严重性数量，并包含运行 ID、目标、场景、状态、发现、验证结果、Agent 结果、checkpoint、facts、事件和错误。`render_markdown()` 输出来源、验证状态和证据哈希说明，并把 `simulated` 与 `verified` 分开解释。`write_report()` 创建输出目录，写入 `<run_id>.json` 和 `<run_id>.md`，并返回绝对路径。
+`build_report()` 统计严重性数量，并包含运行 ID、目标、场景、状态、`agent_mode`、发现、`interpretation`、验证结果、Agent 结果、checkpoint、facts、事件和错误。`render_markdown()` 输出来源、验证状态和证据哈希说明，并把 `simulated` 与 `verified` 分开解释。`write_report()` 创建输出目录，写入 `<run_id>.json` 和 `<run_id>.md`，并返回绝对路径。
+
+模型写的内容与实测内容在报告里是分开的：每条 finding 标注 `Evidence grade: measured | indicator-only` 与 `Severity basis`，模型叙述单独以 `**[模型判读 / model interpretation — not evidence]**` 开头；`## Model Interpretation` 小节固定声明"本节由模型依据上文实测证据生成，属解读而非证据，Findings、`verified` 判定与 SHA-256 均来自确定性探测、不受本节影响"，并列出 `measured_sources`、`model_cannot_write` 溯源。
+
+`_as_float()` / `_as_text()` 让渲染对手工改过或旧 schema 的非数值字段保持容错——此前 `f"{confidence:.0%}"` 遇到非数值会抛异常并把整次运行变成 `FAILED`。
 
 报告链路可审计且易读；local-web 已记录请求 URL、响应摘要、响应 SHA-256、正负差分和验证状态。仍没有截图、ground truth、风险接受和整改复测字段。
 
 ### 4.7 可选模型客户端：`harness_mvp/llm.py`
 
-`ModelConfig.from_env()` 从 `HARNESS_LLM_API_KEY`、`HARNESS_LLM_BASE_URL`、`HARNESS_LLM_MODEL`、`HARNESS_LLM_PROVIDER` 读取配置；API Key 的 dataclass `repr` 被隐藏。`LLMClient.advisory()` 使用标准库 `urllib` 向 `{base_url}/chat/completions` 发温度为 0 的 JSON 请求，超时限制在 3–30 秒，解析 `choices[0].message.content` 中的 JSON 对象，并对 HTTP、网络和格式错误抛出明确异常。
+`ModelConfig.from_env()` 从 `HARNESS_LLM_API_KEY`、`HARNESS_LLM_BASE_URL`、`HARNESS_LLM_MODEL`、`HARNESS_LLM_PROVIDER` 读取配置；API Key 的 dataclass `repr` 被隐藏。`LLMClient._chat_json()` 使用标准库 `urllib` 向 `{base_url}/chat/completions` 发温度为 0 的 JSON 请求，`response_format` 为 `json_object`，超时钳制在 5–300 秒（默认 180，因为推理模型实测单次 61.5 秒，旧的 60 秒会在**成功**调用上误报超时）。两个上层方法 `interpret_findings()` 与 `risk_brief()` 在返回前一律经过 `interpretation.py` 的校验，只把响应文本的 SHA-256 留在审计里。
 
-Key 不写入报告或日志，但会发送到配置的服务；Base URL 可被环境变量改成任意地址，生产使用前需要出口限制、域名白名单、秘密注入和响应 schema 校验。
+凭据来源有两处：项目根目录的 `.env`（已 gitignore）与进程环境，**进程环境优先**。`.env` 只在 `cli.main()` 里加载，绝不在 import 时加载，因此 `unittest` 不会读到开发者凭据并发起真实网络请求。
+
+Key 不写入报告或日志，但会发送到配置的服务；Base URL 可被环境变量改成任意地址，生产使用前需要出口限制、域名白名单、秘密注入和响应 schema 校验。本地靶场子进程用过滤后的 `env=` 启动，剔除全部 `HARNESS_LLM_*`。
+
+**网关时限是实际约束**：`kapibala.asia` 在真实长度提示下约 120 秒返回 504，而推理模型 `gpt-5.6-sol` 空提示就要 37 秒，因此该模型无法完成判读调用，只能走确定性回退。当前 `.env` 使用 `deepseek-v4-flash-0731`（实测 6.8 秒/次）。
 
 ### 4.8 靶场就绪检查：`harness_mvp/labs.py`
 

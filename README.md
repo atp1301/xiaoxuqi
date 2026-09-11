@@ -84,7 +84,20 @@ python -m harness_mvp --check-labs
 
 ## 可选的 LLM 配置
 
-默认的 `auto` 模式不需要 Key，适合离线演示；配置 Key 后，`auto` 会让模型对已观测证据给出受限分析建议，确定性规则仍负责产生可复核发现。`llm` 模式要求 Key，且只允许 OpenAI-compatible 的 JSON 分析接口。
+三种模式：`deterministic` 全程不调用模型；`auto` 在没有配置凭据时等同 `deterministic`，配置了才参与；`llm` 要求凭据，缺失会被**同步拒绝**而不是静默降级。控制台右上角的"决策模式"下拉框与 CLI 的 `--mode` 是同一个开关。
+
+**模型只解读证据，不制造证据。** 每轮最多两次调用，都在确定性探测**之后**：
+
+| 调用点 | 模型做什么 | 模型碰不到什么 |
+|---|---|---|
+| `vuln` | 对已测出的 finding 定级（`severity`）并写风险叙述 | 不能新增/删除 finding，不能设置 `exploitable`，不能改 `verified` 结论 |
+| `report` | 写整体风险、执行摘要、优先处置、局限性 | 同上；报告会固定标注该节为"解读而非证据" |
+
+实测差分（真实 HTTP 探测 + 真实 SHA-256）锁定了 `confidence` 的区间，模型只能在该区间内定位：验证通过 `[0.90, 0.99]`，验证失败 `[0.30, 0.40]`，无实测 `[0.40, 0.70]`。已验证的漏洞不允许被降级到 `high` 以下；模型想要的数值会作为 `model_confidence_position` 存入报告以备审计。
+
+模型返回的文本只保留 `finding_id`/`severity`/`confidence`/`narrative` 四个键，其余一律丢弃并记入 `rejected`，因此模型在结构上无法注入 finding。审计只保存响应与输入的 SHA-256，不落原文。
+
+Key 可以放在项目根目录的 `.env`（已 gitignore）里，也可以放在进程环境里；**进程环境始终优先**，`.env` 只在 `cli.main()` 里加载，`unittest` 不会读到开发者凭据。
 
 PowerShell 示例（Key 只存在于当前进程环境，不会写入报告）：
 
@@ -101,11 +114,15 @@ DeepSeek、Kimi 或本地 OpenAI-compatible 服务只需要改 `HARNESS_LLM_BASE
 $env:HARNESS_LLM_API_KEY = "你的钱包 API Key"
 $env:HARNESS_LLM_BASE_URL = "https://kapibala.asia/v1"
 $env:HARNESS_LLM_MODEL = "钱包页面中显示的模型名"
-$env:HARNESS_LLM_TIMEOUT = "60"
+$env:HARNESS_LLM_TIMEOUT = "180"   # 推理模型实测单次 61.5s，60 会超时
 python -m harness_mvp --mode llm --scenario demo --target demo.local --output out-kapibala
 ```
 
-不要把 Key 写进源码、Git、命令历史或报告。没有配置 Key 时，`auto` 会安全地回到确定性策略。
+不要把 Key 写进源码、Git、命令历史或报告。模型调用失败（超时、连不上、返回垃圾）**不会**让评估失败：运行照常 `completed`，报告里写明"已回退确定性定级"。
+
+## ReAct 记录的诚实性
+
+`_THOUGHTS` 里每个步骤的样板文字是**确定性文案，不是模型推理**——这一点在源码注释、报告和这里都明确标注。唯一例外是 `exploit` 步引用的模型风险判读，它是 `vuln` 步那次调用的产物，没有额外开销。
 
 ## 安全边界
 

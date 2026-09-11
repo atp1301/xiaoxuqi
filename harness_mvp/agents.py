@@ -9,6 +9,16 @@ from .models import AgentResult, AgentStatus, Finding, RunState
 from .policy import PolicyEngine
 from .report import build_report
 from .complex_lab import ComplexWebAdapter, sqli_differential as _complex_sqli_differential
+from .interpretation import (
+    BRIEF_VERSION,
+    PROMPT_VERSION,
+    apply_band,
+    band_for,
+    evidence_digest,
+    finding_band,
+    finding_brief,
+    severity_rank,
+)
 from .tools import DemoLabAdapter, HttpLabAdapter, KnowledgeBase
 from .llm import LLMClient
 
@@ -50,6 +60,23 @@ def _sqlite_sqli_differential(validation: dict[str, Any]) -> dict[str, Any]:
         "negative_sha256": negative.metadata.get("body_sha256"),
         "baseline_sha256": baseline.metadata.get("body_sha256"),
     }
+
+
+def _position_confidence(finding: Finding, differential: dict[str, Any]) -> None:
+    """Place confidence inside the band the differential measurement fixed.
+
+    The measurement decides the interval; the model only decides where in it to
+    sit. A model that wanted 0.2 for a verified exploit gets the band floor of
+    0.90, and the value it asked for is kept for the audit trail so the report
+    can show it was overruled rather than silently rewritten.
+    """
+    verified = bool(differential.get("verified"))
+    band = band_for(measured=True, verified=verified)
+    wanted = finding.metadata.get("interpretation", {}).get("confidence_raw")
+    finding.confidence = apply_band(wanted, band, fallback=0.98 if verified else 0.35)
+    finding.metadata["confidence_source"] = "measured_differential_band"
+    finding.metadata["confidence_band"] = {"low": band.low, "high": band.high, "basis": band.basis}
+    finding.metadata["model_confidence_position"] = wanted
 
 
 class Agent(ABC):
@@ -267,16 +294,7 @@ class VulnAgent(Agent):
         data: dict[str, Any] = {"finding_ids": [finding.finding_id for finding in findings]}
         observations = [finding.title for finding in findings]
         if self.llm is not None:
-            try:
-                advisory = self.llm.advisory(state.target.address, endpoints)
-                state.facts["llm_advisory"] = advisory
-                data["llm_advisory"] = advisory
-                observations.append("model advisory recorded")
-            except Exception:
-                if self.llm.config.provider == "auto-fallback":
-                    observations.append("model advisory unavailable; deterministic evidence retained")
-                else:
-                    raise
+            self._grade_with_model(state, data, observations)
         return AgentResult(
             self.name,
             AgentStatus.SUCCESS,
@@ -284,6 +302,99 @@ class VulnAgent(Agent):
             data,
             observations=observations,
         )
+
+    def _grade_with_model(
+        self,
+        state: RunState,
+        data: dict[str, Any],
+        observations: list[str],
+    ) -> None:
+        """Let the model grade the findings, degrading to deterministic values.
+
+        The probes have already run, so the model reasons over real measurements
+        rather than predictions. It cannot add a finding, clear `exploitable`, or
+        change a `verified` verdict: it returns three scalars per finding, which
+        are validated and then clamped into the band the measurement established.
+        """
+        briefs = [finding_brief(finding) for finding in state.findings]
+        try:
+            graded = self.llm.interpret_findings(state.target.address, state.scenario, briefs)
+        except Exception as exc:
+            # A failed model call must never fail the assessment. The deterministic
+            # gradings stand, and the degradation is recorded rather than hidden.
+            self._apply_grading(state.findings, {})
+            state.facts["llm_findings_interpretation"] = {
+                "available": False,
+                "applied": [],
+                "rejected": [],
+                "raw_sha256": None,
+                "evidence_sha256": evidence_digest(briefs),
+                "model": self.llm.config.model,
+                "provider": self.llm.config.provider,
+                "prompt_version": PROMPT_VERSION,
+                "error": str(exc),
+            }
+            state.working_memory["llm_status"] = {"available": False, "error": str(exc)}
+            observations.append("model risk grading unavailable; deterministic grading retained")
+            return
+        applied = self._apply_grading(state.findings, graded["interpretations"])
+        state.facts["llm_findings_interpretation"] = {
+            "available": True,
+            "applied": applied,
+            "rejected": graded["rejected"],
+            "raw_sha256": graded["raw_sha256"],
+            "evidence_sha256": graded["evidence_sha256"],
+            "model": self.llm.config.model,
+            "provider": self.llm.config.provider,
+            "prompt_version": PROMPT_VERSION,
+            "error": None,
+        }
+        state.working_memory["llm_status"] = {"available": True, "error": None}
+        data["llm_findings_interpretation"] = {
+            "applied": applied,
+            "rejected": graded["rejected"],
+        }
+        observations.append("model risk grading applied")
+
+    @staticmethod
+    def _apply_grading(findings: list[Finding], graded: dict[str, dict[str, Any]]) -> list[str]:
+        """Fold validated model gradings into findings; return the applied ids."""
+        applied: list[str] = []
+        for finding in findings:
+            band = finding_band(finding)
+            # Snapshot before the model touches anything, so the report can show
+            # what the rating was and that the model changed it.
+            finding.metadata["severity_baseline"] = finding.severity
+            finding.metadata["confidence_baseline"] = finding.confidence
+            finding.metadata["confidence_band"] = {"low": band.low, "high": band.high, "basis": band.basis}
+
+            entry = graded.get(finding.finding_id)
+            if entry is None:
+                finding.confidence = apply_band(None, band, fallback=finding.confidence)
+                finding.metadata["severity_source"] = "deterministic"
+                finding.metadata["confidence_source"] = "deterministic_fallback"
+                continue
+
+            severity = entry["severity"]
+            # Guardrail on top of the band check: an exploit that was actually
+            # verified against a live target never lands below `high`. The band
+            # for verified measurements already excludes low and medium, so the
+            # floor is simply the band's own lower end.
+            if not band.allows("low") and not band.allows("medium"):
+                severity = max(severity, "high", key=severity_rank)
+            finding.severity = severity
+            raw_confidence = entry["confidence"]
+            finding.confidence = apply_band(raw_confidence, band, fallback=finding.confidence)
+            finding.metadata["severity_source"] = "model"
+            finding.metadata["confidence_source"] = "model_interpretation"
+            finding.metadata["interpretation"] = {
+                "narrative": entry["narrative"],
+                "confidence_raw": raw_confidence,
+                "source": "model",
+                "prompt_version": PROMPT_VERSION,
+            }
+            applied.append(finding.finding_id)
+        return applied
 
 
 class ExploitAgent(Agent):
@@ -312,8 +423,8 @@ class ExploitAgent(Agent):
                 status = "verified" if differential["verified"] else "failed"
                 for finding in state.findings:
                     if finding.cwe == "CWE-89":
+                        _position_confidence(finding, differential)
                         finding.exploitable = differential["verified"]
-                        finding.confidence = 0.98 if differential["verified"] else 0.35
                         finding.metadata["validation"] = {
                             "status": status,
                             **differential,
@@ -377,8 +488,8 @@ class ExploitAgent(Agent):
                 }
                 for finding in state.findings:
                     if finding.cwe == "CWE-89":
+                        _position_confidence(finding, chain.get("differential", {}))
                         finding.exploitable = bool(chain.get("verified"))
-                        finding.confidence = 0.99 if chain.get("verified") else 0.35
                         finding.metadata["validation"] = {
                             "status": status,
                             "shell_obtained": chain.get("shell_obtained"),
@@ -439,16 +550,103 @@ class ExploitAgent(Agent):
         )
 
 
+def _brief_evidence(state: RunState) -> dict[str, Any]:
+    """The exact evidence handed to the model for the report-stage brief.
+
+    Deliberately a flat digest of what the harness measured: no configuration,
+    no environment, and nothing that a model could mistake for an instruction.
+    """
+    evidence: dict[str, Any] = {
+        "target": state.target.address,
+        "scenario": state.scenario,
+        "findings": [
+            {
+                "finding_id": finding.finding_id,
+                "title": finding.title,
+                "severity": finding.severity,
+                "severity_baseline": finding.metadata.get("severity_baseline"),
+                "confidence": finding.confidence,
+                "cwe": finding.cwe,
+                "endpoint": finding.endpoint,
+                "source": finding.source,
+                "exploitable": finding.exploitable,
+                "measured": finding.metadata.get("differential"),
+                "validation_status": (finding.metadata.get("validation") or {}).get("status"),
+            }
+            for finding in state.findings
+        ],
+        "exploit_results": [
+            {"finding_id": item.get("finding_id"), "status": item.get("status")}
+            for item in state.exploit_results
+        ],
+        "agents": [
+            {"agent": result.agent, "status": result.status.value, "summary": result.summary}
+            for result in state.agent_results
+        ],
+    }
+    chain = (state.facts.get("test_evidence") or {}).get("chain")
+    if chain:
+        evidence["attack_chain"] = {
+            "steps": chain,
+            "shell_identity": (state.facts.get("test_evidence") or {}).get("shell_identity"),
+            "flag_match": (state.facts.get("test_evidence") or {}).get("flag_match"),
+        }
+    return evidence
+
+
 class ReportAgent(Agent):
     name = "report"
 
+    def __init__(self, llm: LLMClient | None = None) -> None:
+        self.llm = llm
+
     def run(self, state: RunState) -> AgentResult:
+        observations: list[str] = []
+        if self.llm is not None:
+            self._write_risk_brief(state, observations)
         return AgentResult(
             self.name,
             AgentStatus.SUCCESS,
             "assembled auditable report",
             {"finding_count": build_report(state)["summary"]["finding_count"]},
+            observations=observations,
         )
+
+    def _write_risk_brief(self, state: RunState, observations: list[str]) -> None:
+        """Record the model's brief, or record why there is none.
+
+        Always returns; a missing brief must not stop the report from being
+        written, so the failure is stored as an explicit `available: false`
+        rather than raised.
+        """
+        evidence = _brief_evidence(state)
+        envelope = {
+            "available": False,
+            "content": {},
+            "rejected": [],
+            "raw_sha256": None,
+            "evidence_sha256": evidence_digest(evidence),
+            "model": self.llm.config.model,
+            "provider": self.llm.config.provider,
+            "prompt_version": BRIEF_VERSION,
+            "error": None,
+        }
+        try:
+            brief = self.llm.risk_brief(state.target.address, state.scenario, evidence)
+        except Exception as exc:
+            envelope["error"] = str(exc)
+            state.facts["llm_risk_brief"] = envelope
+            observations.append("model risk brief unavailable; report written from deterministic evidence")
+            return
+        envelope.update({
+            "available": True,
+            "content": brief["content"],
+            "rejected": brief["rejected"],
+            "raw_sha256": brief["raw_sha256"],
+            "evidence_sha256": brief["evidence_sha256"],
+        })
+        state.facts["llm_risk_brief"] = envelope
+        observations.append("model risk brief applied")
 
 
 
@@ -683,5 +881,5 @@ def make_agents(
         "vuln": VulnAgent(kb, llm, adapter),
         "exploit": exploit,
         "post_exploit": PostExploitAgent(policy),
-        "report": ReportAgent(),
+        "report": ReportAgent(llm),
     }

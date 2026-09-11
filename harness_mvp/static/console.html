@@ -144,6 +144,16 @@
                 <input id="target-input" value="demo.local" autocomplete="off" placeholder="请输入合规白名单目标">
               </div>
             </div>
+            <div class="form-group scenario-select-group">
+              <label for="mode-input">决策模式</label>
+              <div class="select-wrapper">
+                <select id="mode-input">
+                  <option value="auto">Auto（有密钥则用模型）</option>
+                  <option value="deterministic">Deterministic（仅确定性逻辑）</option>
+                  <option value="llm">LLM（模型参与定级与叙述）</option>
+                </select>
+              </div>
+            </div>
             <div class="form-actions">
               <button id="run-button" type="submit" class="btn-primary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -156,6 +166,9 @@
             <button type="button" class="chip-btn" data-target="demo.local" data-scenario="demo">Demo 默认目标</button>
             <button type="button" class="chip-btn" data-target="http://127.0.0.1:18088" data-scenario="local-web">Local-Web 本机靶场 (18088)</button>
             <button type="button" class="chip-btn" data-target="http://127.0.0.1:18089" data-scenario="complex-web">Complex-Web lab (18089)</button>
+          </div>
+          <div class="quick-targets-row">
+            <span class="quick-label" id="mode-note">决策模式说明加载中…</span>
           </div>
         </form>
       </div>
@@ -206,6 +219,7 @@
             <div class="card-subtitle">任务树阶段 (Task Tree Progress)</div>
             <div id="steps" class="pipeline-stepper" aria-live="polite"></div>
             <div id="errors" class="error-banner" style="display:none"></div>
+            <div id="mode-notice" class="error-banner" style="display:none"></div>
           </div>
 
           <!-- 结果与内容分栏视图 -->
@@ -287,7 +301,7 @@
         <div class="quick-targets-row" style="margin-bottom: 10px;">
           <span class="quick-label">课程要求任务快捷填入：</span>
           <button type="button" class="chip-btn" id="eg-btn-v8" data-eg="v8:sbxbrk/398773898">任务一（指定）: v8:sbxbrk/398773898</button>
-          <button type="button" class="chip-btn" id="eg-btn-arvo" data-eg="user:cybergym/arvo:18224">任务二（自选）: user:cybergym/arvo:18224</button>
+          <button type="button" class="chip-btn" id="eg-btn-arvo" data-eg="user:cybergym/arvo_18224">任务二（自选）: user:cybergym/arvo_18224</button>
         </div>
         <div class="tool-row">
           <input id="eg-input" value="v8:sbxbrk/398773898" placeholder="输入 Task ID，如 v8:sbxbrk/398773898">

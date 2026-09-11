@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from .envfile import load_env_file
 from .labs import check_labs
 from .orchestrator import Orchestrator
 from .policy import PolicyViolation
@@ -23,13 +24,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    # Loaded here rather than at import time so `unittest` runs never pick up a
+    # developer's real credentials and start talking to the network.
+    load_env_file()
     if args.check_labs:
         print(json.dumps([check.__dict__ for check in check_labs()], ensure_ascii=False, indent=2))
         return 0
     if args.serve:
         from .dashboard import serve
 
-        serve(host="127.0.0.1", port=args.port, output_dir=args.output)
+        serve(host="127.0.0.1", port=args.port, output_dir=args.output, default_mode=args.mode)
         return 0
     try:
         state = Orchestrator(mode=args.mode).run(args.target, args.scenario, args.output, resume_from=args.resume)

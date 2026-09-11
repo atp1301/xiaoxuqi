@@ -1,9 +1,12 @@
 const scenarioInput = document.getElementById('scenario-input');
+const modeInput = document.getElementById('mode-input');
+const modeNote = document.getElementById('mode-note');
 const targetInput = document.getElementById('target-input');
 const runButton = document.getElementById('run-button');
 const statusNode = document.getElementById('status');
 const stepsNode = document.getElementById('steps');
 const errorsNode = document.getElementById('errors');
+const modeNoticeNode = document.getElementById('mode-notice');
 const reportNode = document.getElementById('report');
 const findingsNode = document.getElementById('findings');
 const rawNode = document.getElementById('raw');
@@ -215,7 +218,14 @@ function formatInline(str) {
   let res = escapeHtml(str);
   res = res.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   res = res.replace(/`([^`]+)`/g, '<code>$1</code>');
-  res = res.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Only http(s) targets become links. Model-authored text reaches this
+  // function, so a bare `$2` would turn `[click](javascript:...)` into a live
+  // link. Anything else keeps the literal label and drops the URL.
+  res = res.replace(/\[([^\]]+)\]\(([^)]*)\)/g, (match, label, url) => {
+    const trimmed = url.trim();
+    if (!/^https?:\/\//i.test(trimmed)) return label;
+    return `<a href="${trimmed}" target="_blank" rel="noopener">${label}</a>`;
+  });
   return res;
 }
 
@@ -260,13 +270,28 @@ function renderCapabilities(catalog) {
   });
 
   const safety = document.getElementById('safety-list');
-  if (!safety) return;
-  safety.replaceChildren();
-  (catalog.safety || []).forEach(text => {
-    const li = document.createElement('li');
-    li.textContent = text;
-    safety.appendChild(li);
-  });
+  if (safety) {
+    safety.replaceChildren();
+    (catalog.safety || []).forEach(text => {
+      const li = document.createElement('li');
+      li.textContent = text;
+      safety.appendChild(li);
+    });
+  }
+  renderModeNote(catalog.llm);
+}
+
+function renderModeNote(llm) {
+  if (!modeNote) return;
+  if (!llm) {
+    modeNote.textContent = '决策模式：未获取到服务端 LLM 配置（catalog.llm 缺失）';
+    return;
+  }
+  const sites = (llm.call_sites || []).join(' / ');
+  const where = llm.base_url_host ? `${llm.base_url_host}` : '未配置端点';
+  modeNote.textContent = llm.configured
+    ? `决策模式：模型已配置（${llm.model} @ ${where}，约 ${llm.timeout_seconds ?? '?'}s/次），调用点 ${sites}；LLM 模式下模型只做定级与叙述，实测差分仍是唯一证据来源。`
+    : '决策模式：未检测到 HARNESS_LLM_*，auto 会回退为确定性模式，LLM 模式将直接被拒绝（400）。';
 }
 
 function renderLabs(items) {
@@ -331,7 +356,7 @@ function renderRunList(items) {
     metaRow.className = 'run-meta-row';
     const target = document.createElement('span');
     target.className = 'run-target-tag';
-    target.textContent = `${item.scenario} · ${item.target}`;
+    target.textContent = `${item.scenario} · ${item.target} · ${item.mode || 'deterministic'}`;
 
     const findingTag = document.createElement('span');
     findingTag.className = 'run-findings-tag';
@@ -424,6 +449,18 @@ function render(state) {
   } else {
     errorsNode.style.display = 'none';
     errorsNode.textContent = '';
+  }
+
+  // Model participation notice — a degraded model call must never be silent.
+  if (modeNoticeNode) {
+    const interpretation = (state.facts && state.facts.llm_findings_interpretation) || null;
+    if (state.mode === 'llm' && interpretation && interpretation.available === false) {
+      modeNoticeNode.style.display = 'block';
+      modeNoticeNode.textContent = `模型判读不可用，已回退确定性定级：${interpretation.error || '未知原因'}`;
+    } else {
+      modeNoticeNode.style.display = 'none';
+      modeNoticeNode.textContent = '';
+    }
   }
 
   // Findings
@@ -640,7 +677,11 @@ document.getElementById('run-form').addEventListener('submit', async event => {
     const response = await fetch('/api/runs', {
       method: 'POST',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({target: targetInput.value, scenario: scenarioInput.value})
+      body: JSON.stringify({
+        target: targetInput.value,
+        scenario: scenarioInput.value,
+        mode: modeInput.value
+      })
     });
     const state = await response.json();
     if (!response.ok) throw new Error(state.error || ('HTTP ' + response.status));
@@ -682,7 +723,7 @@ const egBtnArvo = document.getElementById('eg-btn-arvo');
 if (egBtnArvo) {
   egBtnArvo.addEventListener('click', () => {
     const egInput = document.getElementById('eg-input');
-    if (egInput) egInput.value = 'user:cybergym/arvo:18224';
+    if (egInput) egInput.value = 'user:cybergym/arvo_18224';
     checkExploitGym().catch(err => { egOut.textContent = '错误：' + err.message; });
   });
 }
