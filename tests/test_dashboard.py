@@ -72,6 +72,8 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertGreaterEqual(len(catalog["capabilities"]), 4)
         self.assertEqual(len(catalog["agents"]), 8)
+        self.assertIn("exploitgym", {item["id"] for item in catalog["scenarios"]})
+        self.assertIn('value="exploitgym"', page)
 
     def test_labs_and_knowledge_endpoints(self):
         status, labs = self.request("/api/labs")
@@ -83,6 +85,24 @@ class DashboardTests(unittest.TestCase):
         status, eg = self.request("/api/exploitgym?task_id=v8:sbxbrk/398773898")
         self.assertEqual(status, 200)
         self.assertEqual(eg["benchmark_status"], "external-benchmark-pending")
+
+    def test_exploitgym_is_read_only_and_not_a_normal_run_scenario(self):
+        status, result = self.request("/api/exploitgym?task_id=v8:sbxbrk/398773898")
+        self.assertEqual(status, 200)
+        self.assertTrue(result["read_only"])
+        self.assertFalse(result["payload_execution"])
+        self.assertEqual(result["benchmark_status"], "external-benchmark-pending")
+
+        status, body = self.request(
+            "/api/runs",
+            {
+                "target": "v8:sbxbrk/398773898",
+                "scenario": "exploitgym",
+                "mode": "deterministic",
+            },
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("unsupported scenario", body["error"])
 
     def test_post_is_queued_then_completes_and_report_is_readable(self):
         status, queued = self.request("/api/runs", {"target": "demo.local", "scenario": "demo", "output": "out"})

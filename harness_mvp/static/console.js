@@ -92,20 +92,33 @@ document.querySelectorAll('.tag-chip').forEach(btn => {
 scenarioInput.addEventListener('change', () => {
   const label = runButton.querySelector('span');
   const setLabel = (value) => { if (label) label.textContent = value; else runButton.textContent = value; };
-  if (scenarioInput.value === 'local-web') {
-    if (targetInput.value === 'demo.local' || targetInput.value.includes('18089') || !targetInput.value) {
+  const isExploitGym = scenarioInput.value === 'exploitgym';
+  const isExploitGymTask = /^[A-Za-z][A-Za-z0-9_-]*:[A-Za-z0-9_][A-Za-z0-9_.-]*\/[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(targetInput.value.trim());
+  modeInput.disabled = isExploitGym;
+  if (isExploitGym) {
+    if (!targetInput.value || targetInput.value === 'demo.local' || targetInput.value.includes('18088') || targetInput.value.includes('18089') || targetInput.value.startsWith('http')) {
+      targetInput.value = 'v8:sbxbrk/398773898';
+    }
+    targetInput.placeholder = '输入 ExploitGym Task ID，如 v8:sbxbrk/398773898';
+    setLabel('检查 ExploitGym');
+    if (modeNote) modeNote.textContent = 'ExploitGym 当前仅做只读任务清单检查，不启动 benchmark、不执行 payload，也不会创建普通运行记录。';
+  } else if (scenarioInput.value === 'local-web') {
+    if (isExploitGymTask || targetInput.value === 'demo.local' || targetInput.value.includes('18089') || !targetInput.value) {
       targetInput.value = 'http://127.0.0.1:18088';
     }
+    targetInput.placeholder = '请输入合规白名单目标';
     setLabel('Run local-web');
   } else if (scenarioInput.value === 'complex-web') {
-    if (targetInput.value === 'demo.local' || targetInput.value.includes('18088') || !targetInput.value) {
+    if (isExploitGymTask || targetInput.value === 'demo.local' || targetInput.value.includes('18088') || !targetInput.value) {
       targetInput.value = 'http://127.0.0.1:18089';
     }
+    targetInput.placeholder = '请输入合规白名单目标';
     setLabel('Run complex-web');
   } else {
-    if (targetInput.value.includes('18088') || targetInput.value.includes('18089') || !targetInput.value) {
+    if (isExploitGymTask || targetInput.value.includes('18088') || targetInput.value.includes('18089') || !targetInput.value) {
       targetInput.value = 'demo.local';
     }
+    targetInput.placeholder = '请输入合规白名单目标';
     setLabel('Run Demo');
   }
 });
@@ -560,6 +573,52 @@ function render(state) {
   rawNode.textContent = JSON.stringify(state, null, 2);
 }
 
+function renderExploitGymCheck(payload, taskId) {
+  activeRunId = null;
+  if (cockpitTarget) cockpitTarget.textContent = taskId;
+  if (cockpitRunId) cockpitRunId.textContent = 'read-only';
+  if (statusNode) {
+    statusNode.textContent = '只读检查完成';
+    statusNode.className = 'badge-status info';
+  }
+  if (stepsNode) {
+    stepsNode.replaceChildren();
+    const card = document.createElement('div');
+    card.className = 'step-card success';
+    card.innerHTML = '<div class="step-header"><span class="step-agent-name">1. ExploitGym 清单检查</span><span class="step-state-tag">完成</span></div><div class="step-summary">读取任务 ID、checkout 文件和官方 scorer 状态；未启动 benchmark。</div>';
+    stepsNode.appendChild(card);
+  }
+  if (errorsNode) {
+    errorsNode.style.display = 'none';
+    errorsNode.textContent = '';
+  }
+  if (modeNoticeNode) {
+    modeNoticeNode.style.display = 'block';
+    modeNoticeNode.textContent = '这是只读检查结果，不是 ExploitGym 官方 benchmark 执行结果。';
+  }
+  if (findingsCountBadge) findingsCountBadge.textContent = '0';
+  if (findingsNode) {
+    findingsNode.replaceChildren();
+    const card = document.createElement('article');
+    card.className = 'finding-card info';
+    const title = document.createElement('div');
+    title.className = 'finding-title';
+    title.textContent = 'ExploitGym 只读检查结果';
+    const meta = document.createElement('div');
+    meta.className = 'finding-meta-row';
+    meta.innerHTML = `<span class="meta-item"><span class="meta-label">任务:</span> <code class="meta-val">${escapeHtml(taskId)}</code></span><span class="meta-item"><span class="meta-label">清单:</span> <span class="meta-val">${escapeHtml(payload.status || 'unknown')}</span></span><span class="meta-item"><span class="meta-label">官方评分:</span> <span class="meta-val">${escapeHtml(payload.benchmark_status || 'unknown')}</span></span>`;
+    const body = document.createElement('div');
+    body.className = 'finding-desc';
+    body.textContent = payload.next_action || payload.readiness_meaning || '已完成只读检查。';
+    card.append(title, meta, body);
+    findingsNode.appendChild(card);
+  }
+  if (reportNode) reportNode.replaceChildren();
+  if (openReportLink) openReportLink.style.display = 'none';
+  if (reportRenderedContent) reportRenderedContent.innerHTML = '<div class="empty-state">ExploitGym 只读检查不生成普通审计报告。</div>';
+  if (rawNode) rawNode.textContent = JSON.stringify(payload, null, 2);
+}
+
 async function poll(runId) {
   try {
     const response = await fetch('/api/runs/' + encodeURIComponent(runId));
@@ -674,6 +733,15 @@ document.getElementById('run-form').addEventListener('submit', async event => {
   errorsNode.textContent = '';
   reportNode.replaceChildren();
   try {
+    if (scenarioInput.value === 'exploitgym') {
+      const taskId = targetInput.value.trim();
+      if (!taskId) throw new Error('请填写 ExploitGym Task ID');
+      const response = await fetch('/api/exploitgym?task_id=' + encodeURIComponent(taskId));
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || ('HTTP ' + response.status));
+      renderExploitGymCheck(payload, taskId);
+      return;
+    }
     const response = await fetch('/api/runs', {
       method: 'POST',
       headers: {'content-type': 'application/json'},

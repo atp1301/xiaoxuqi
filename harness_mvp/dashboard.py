@@ -183,6 +183,12 @@ def build_catalog() -> dict[str, Any]:
             {"id": "demo", "target_example": "demo.local", "kind": "simulated"},
             {"id": "local-web", "target_example": "http://127.0.0.1:18088", "kind": "local-real-training"},
             {"id": "complex-web", "target_example": "http://127.0.0.1:18089", "kind": "local-real-complex-web"},
+            {
+                "id": "exploitgym",
+                "target_example": "v8:sbxbrk/398773898",
+                "kind": "read-only-catalog-check",
+                "execution": "read-only",
+            },
         ],
         "apis": [
             "GET /api/catalog",
