@@ -43,6 +43,16 @@
     </nav>
 
     <div class="header-right">
+      <div class="header-actions-group">
+        <button id="btn-quick-health" class="header-action-btn" type="button" title="一键全系统健康检测与服务存活诊断">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>健康检测</span>
+        </button>
+        <button id="btn-quick-start" class="header-action-btn btn-action-start" type="button" title="一键启动本地靶场服务 (Complex-Web / Local-Web / Docker)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>一键启动服务</span>
+        </button>
+      </div>
       <div class="security-badge" title="系统严格运行于 127.0.0.1 本地回环网络，安全隔离">
         <span class="pulse-dot"></span>
         <span>Loopback 隔离</span>
@@ -54,6 +64,66 @@
   <main class="app-main">
     <!-- TAB 1: 作战控制台 (核心业务工作区) -->
     <section id="tab-console" class="tab-panel active">
+      <!-- 课程设计项目二：三大靶场验收测试卡片 -->
+      <div class="course-req-banner">
+        <div class="banner-header">
+          <div class="banner-badge">
+            <span class="badge-icon">🎓</span>
+            <span>课程设计项目二 · 三大靶场验收评测</span>
+          </div>
+          <span class="banner-sub">面向完整攻击链智能构建的多 Agent 分职协作 Harness 系统（支持一键分别测试三个靶场要求）</span>
+        </div>
+        <div class="req-cards-grid">
+          <!-- 要求一：Windows 域 (GOAD) -->
+          <div class="req-card" id="card-req-goad">
+            <div class="req-card-top">
+              <span class="req-tag">要求一</span>
+              <span class="req-status-pill pill-blue">组员节点承载 / 架构已核验</span>
+            </div>
+            <h3 class="req-title">Windows 域靶场 (GOAD)</h3>
+            <p class="req-desc">包含域控与多个普通用户节点；预设域漏洞，验证获取域管权限与数据脱敏回传路径。</p>
+            <div class="req-footer">
+              <button type="button" class="btn-req-test" id="req-btn-goad">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>一键测试要求一</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 要求二：ExploitGym 两个靶场 -->
+          <div class="req-card" id="card-req-exploitgym">
+            <div class="req-card-top">
+              <span class="req-tag">要求二</span>
+              <span class="req-status-pill pill-purple">官方 Scorer 实测归档</span>
+            </div>
+            <h3 class="req-title">ExploitGym 两项典型任务</h3>
+            <p class="req-desc">任务一(指定): <code>v8:sbxbrk/398773898</code> (V8内存破坏->沙箱逃逸)；任务二(自选): <code>arvo:18224</code>。</p>
+            <div class="req-footer">
+              <button type="button" class="btn-req-test" id="req-btn-exploitgym">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>一键测试要求二</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 要求三：复杂 Web 靶场 -->
+          <div class="req-card highlight-card" id="card-req-complex-web">
+            <div class="req-card-top">
+              <span class="req-tag">要求三</span>
+              <span class="req-status-pill pill-green">本机负责主靶场 · 18089 就绪</span>
+            </div>
+            <h3 class="req-title">复杂 Web 靶场全自动渗透</h3>
+            <p class="req-desc">三节点网络拓扑（边缘网关 + 业务 API + 内部后台）；7 步多 Agent 分工协同，远程突破拿到 Flag。</p>
+            <div class="req-footer">
+              <button type="button" class="btn-req-test btn-req-primary" id="req-btn-complex-web">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>一键测试要求三 (全自动渗透)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 快速下发栏 -->
       <div class="launcher-bar">
         <form id="run-form" class="launcher-form">
@@ -214,6 +284,11 @@
           <h3>ExploitGym 清单检查 (只读)</h3>
           <span class="tool-tip">只读验证本地 Task ID 是否存在于 ExploitGym 清单中，不执行外部 benchmark</span>
         </div>
+        <div class="quick-targets-row" style="margin-bottom: 10px;">
+          <span class="quick-label">课程要求任务快捷填入：</span>
+          <button type="button" class="chip-btn" id="eg-btn-v8" data-eg="v8:sbxbrk/398773898">任务一（指定）: v8:sbxbrk/398773898</button>
+          <button type="button" class="chip-btn" id="eg-btn-arvo" data-eg="user:cybergym/arvo:18224">任务二（自选）: user:cybergym/arvo:18224</button>
+        </div>
         <div class="tool-row">
           <input id="eg-input" value="v8:sbxbrk/398773898" placeholder="输入 Task ID，如 v8:sbxbrk/398773898">
           <button id="eg-button" class="btn-secondary" type="button">检查任务</button>
@@ -287,6 +362,126 @@
     </section>
   </main>
 </div>
+
+<!-- 弹窗 1：系统健康检测与服务存活看板 -->
+<div id="modal-health" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <div class="modal-icon-wrap icon-health">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div>
+          <h3 class="modal-title">全系统健康检测与服务存活诊断</h3>
+          <span id="health-timestamp" class="modal-sub">检测时间：刚刚</span>
+        </div>
+      </div>
+      <button type="button" class="modal-close-btn" id="health-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- 概览徽章 -->
+      <div class="health-summary-box">
+        <div class="health-badge-large" id="health-verdict-badge">
+          <span class="health-indicator-dot"></span>
+          <strong id="health-verdict-text">HEALTHY</strong>
+        </div>
+        <p id="health-summary-text" class="health-summary-desc">正在拉取系统健康状态...</p>
+      </div>
+
+      <!-- 本机节点角色与服务清单 -->
+      <div class="modal-section-title">
+        <span>本机节点服务 (Complex-Web 负责人节点)</span>
+        <span id="health-hostname" class="badge-role">Host</span>
+      </div>
+      <div id="health-services-list" class="health-items-grid">
+        <div class="loading-state">加载服务状态中...</div>
+      </div>
+
+      <!-- Docker 状态 -->
+      <div class="modal-section-title">Docker 容器环境</div>
+      <div id="health-docker-box" class="health-info-box">
+        <div class="info-row"><span class="label">Docker Engine:</span><span id="health-docker-ver">检测中...</span></div>
+        <div id="health-docker-containers" class="container-chips-list"></div>
+      </div>
+
+      <!-- 团队分布式节点说明 -->
+      <div class="modal-section-title">课程团队分布式节点 (组员分工)</div>
+      <div id="health-distributed-list" class="distributed-cards-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" id="health-recheck-btn">重新检测</button>
+      <button type="button" class="btn-primary" id="health-quick-start-btn">一键启动未就绪服务</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗 2：一键启动本地服务面板 -->
+<div id="modal-start" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <div class="modal-icon-wrap icon-start">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div>
+          <h3 class="modal-title">一键启动本地靶场服务</h3>
+          <span class="modal-sub">按组员分工启动本电脑负责的所有组件</span>
+        </div>
+      </div>
+      <button type="button" class="modal-close-btn" id="start-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="service-role-banner">
+        <strong>💻 本机当前角色分配：</strong>
+        <span>复杂 Web 三节点靶场 (18089) + Harness MVP 控制台 (8765) + 基础训练靶场 (18088)</span>
+      </div>
+      <div class="form-group" style="margin: 16px 0 10px;">
+        <label for="start-role-select">选择启动范围：</label>
+        <div class="select-wrapper">
+          <select id="start-role-select">
+            <option value="all">启动所有本地靶场组件（推荐：Complex-Web + Local-Web + Docker）</option>
+            <option value="complex-web">仅启动 Complex-Web 三节点靶场 (18089)</option>
+            <option value="local-web">仅启动 Local-Web SQLite 训练靶场 (18088)</option>
+          </select>
+        </div>
+      </div>
+      <div class="start-log-box">
+        <div class="log-header">执行输出日志</div>
+        <pre id="start-log-output" class="start-log-content">点击下方“立即启动”执行启动并验证端口监听...</pre>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" id="start-cancel-btn">关闭</button>
+      <button type="button" class="btn-primary" id="start-execute-btn">立即执行启动</button>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗 3：课程设计要求评测详情弹窗 -->
+<div id="modal-req-test" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-lg">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <div class="modal-icon-wrap icon-req">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+        </div>
+        <div>
+          <h3 class="modal-title" id="req-modal-title">课程设计要求评测</h3>
+          <span class="modal-sub" id="req-modal-sub">详细测试结果与依据</span>
+        </div>
+      </div>
+      <button type="button" class="modal-close-btn" id="req-modal-close">×</button>
+    </div>
+    <div class="modal-body" id="req-modal-body">
+      <div class="loading-state">正在执行测试并生成证据...</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" id="req-modal-copy-btn">复制测试证据 JSON</button>
+      <button type="button" class="btn-primary" id="req-modal-confirm-btn">确定</button>
+    </div>
+  </div>
+</div>
+
 <script src="/static/console.js"></script>
 </body>
 </html>

@@ -17,6 +17,13 @@ from .labs import check_labs
 from .models import RunState
 from .orchestrator import Orchestrator
 from .policy import PolicyEngine, PolicyViolation, parse_target
+from .services import (
+    check_system_health,
+    start_local_services,
+    run_goad_requirement_test,
+    run_exploitgym_requirement_test,
+    run_complex_web_requirement_test,
+)
 
 
 MAX_REQUEST_BODY = 64 * 1024
@@ -151,6 +158,13 @@ def build_catalog() -> dict[str, Any]:
             "GET /api/runs/{id}/progress",
             "GET /api/runs/{id}/report",
             "GET /api/tools",
+            "GET /api/services/health",
+            "POST /api/services/start",
+            "GET /api/tests/goad",
+            "GET /api/tests/exploitgym",
+            "GET /api/tests/complex-web",
+            "POST /api/tests/goad",
+            "POST /api/tests/exploitgym",
         ],
         "safety": [
             "只绑定 127.0.0.1 / localhost / ::1",
@@ -316,6 +330,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if path == "/api/labs":
             self._send_json(200, {"labs": [asdict(item) for item in check_labs()]})
             return
+        if path == "/api/services/health":
+            self._send_json(200, check_system_health())
+            return
+        if path == "/api/tests/goad":
+            self._send_json(200, run_goad_requirement_test())
+            return
+        if path == "/api/tests/exploitgym":
+            self._send_json(200, run_exploitgym_requirement_test())
+            return
+        if path == "/api/tests/complex-web":
+            self._send_json(200, run_complex_web_requirement_test())
+            return
         if path == "/api/knowledge":
             raw_query = (query.get("q") or [""])[0]
             if len(raw_query) > MAX_KNOWLEDGE_QUERY:
@@ -411,7 +437,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._send(200, content, "text/markdown")
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
-        if urlparse(self.path).path != "/api/runs":
+        path = urlparse(self.path).path
+        if path not in {"/api/runs", "/api/services/start", "/api/tests/goad", "/api/tests/exploitgym"}:
             self._send_json(404, {"error": "route not found"})
             return
         content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
@@ -427,6 +454,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if length < 0:
                 raise ValueError("Content-Length is invalid")
             if length > MAX_REQUEST_BODY:
+                try:
+                    self.rfile.read(min(length, 65536))
+                except Exception:
+                    pass
+                self.close_connection = True
                 self._send_json(413, {"error": "request body is too large"})
                 return
             raw = self.rfile.read(length)
@@ -435,6 +467,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
             payload = json.loads(raw or b"{}")
             if not isinstance(payload, dict):
                 raise ValueError("JSON body must be an object")
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        if path == "/api/services/start":
+            role = payload.get("role", "all")
+            if not isinstance(role, str):
+                role = "all"
+            self._send_json(200, start_local_services(role))
+            return
+
+        if path == "/api/tests/goad":
+            self._send_json(200, run_goad_requirement_test())
+            return
+
+        if path == "/api/tests/exploitgym":
+            self._send_json(200, run_exploitgym_requirement_test())
+            return
+
+        try:
             target, scenario = payload.get("target", "demo.local"), payload.get("scenario", "demo")
             if not isinstance(target, str) or not isinstance(scenario, str):
                 raise ValueError("target and scenario must be strings")
@@ -442,7 +494,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 raise ValueError("unsupported scenario")
             PolicyEngine().require_target(parse_target(target))
             output_dir = self._resolve_output(payload.get("output"))
-        except (ValueError, TypeError, json.JSONDecodeError, PolicyViolation) as exc:
+        except (ValueError, TypeError, PolicyViolation) as exc:
             self._send_json(400, {"error": str(exc)})
             return
 

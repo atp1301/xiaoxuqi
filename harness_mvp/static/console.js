@@ -670,6 +670,23 @@ document.getElementById('eg-button').addEventListener('click', () => checkExploi
   egOut.textContent = '错误：' + err.message;
 }));
 
+const egBtnV8 = document.getElementById('eg-btn-v8');
+if (egBtnV8) {
+  egBtnV8.addEventListener('click', () => {
+    const egInput = document.getElementById('eg-input');
+    if (egInput) egInput.value = 'v8:sbxbrk/398773898';
+    checkExploitGym().catch(err => { egOut.textContent = '错误：' + err.message; });
+  });
+}
+const egBtnArvo = document.getElementById('eg-btn-arvo');
+if (egBtnArvo) {
+  egBtnArvo.addEventListener('click', () => {
+    const egInput = document.getElementById('eg-input');
+    if (egInput) egInput.value = 'user:cybergym/arvo:18224';
+    checkExploitGym().catch(err => { egOut.textContent = '错误：' + err.message; });
+  });
+}
+
 Promise.all([refreshCatalog(), refreshRuns()]).catch(err => {
   if (errorsNode) {
     errorsNode.style.display = 'block';
@@ -710,3 +727,341 @@ function renderDefaultSteps() {
   }
 }
 renderDefaultSteps();
+
+/* ==========================================================================
+   Health Diagnostics, Service Management & Course Requirements Handlers
+   ========================================================================== */
+let lastReqTestData = null;
+
+function showModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'flex';
+}
+
+function hideModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+['health-modal-close', 'start-modal-close', 'start-cancel-btn', 'req-modal-close', 'req-modal-confirm-btn'].forEach(id => {
+  const btn = document.getElementById(id);
+  if (btn) {
+    btn.addEventListener('click', () => {
+      hideModal('modal-health');
+      hideModal('modal-start');
+      hideModal('modal-req-test');
+    });
+  }
+});
+
+['modal-health', 'modal-start', 'modal-req-test'].forEach(id => {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) hideModal(id);
+    });
+  }
+});
+
+const copyReqBtn = document.getElementById('req-modal-copy-btn');
+if (copyReqBtn) {
+  copyReqBtn.addEventListener('click', async () => {
+    if (lastReqTestData) {
+      await navigator.clipboard.writeText(JSON.stringify(lastReqTestData, null, 2));
+      copyReqBtn.textContent = '已复制！';
+      setTimeout(() => { copyReqBtn.textContent = '复制测试证据 JSON'; }, 1800);
+    }
+  });
+}
+
+async function fetchAndRenderHealth() {
+  const summaryText = document.getElementById('health-summary-text');
+  const verdictBadge = document.getElementById('health-verdict-badge');
+  const verdictText = document.getElementById('health-verdict-text');
+  const servicesList = document.getElementById('health-services-list');
+  const tsText = document.getElementById('health-timestamp');
+  const hostText = document.getElementById('health-hostname');
+  const dockerVer = document.getElementById('health-docker-ver');
+  const dockerChips = document.getElementById('health-docker-containers');
+  const distributedList = document.getElementById('health-distributed-list');
+
+  if (summaryText) summaryText.textContent = '正在检测全系统服务与靶场端口...';
+
+  try {
+    const res = await fetch('/api/services/health');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (tsText) tsText.textContent = `检测时间：${data.timestamp}`;
+    if (hostText) hostText.textContent = `${data.local_node.host} (${data.local_node.role})`;
+    if (summaryText) summaryText.textContent = data.summary;
+
+    if (verdictBadge && verdictText) {
+      verdictBadge.className = `health-badge-large ${data.verdict.toLowerCase()}`;
+      verdictText.textContent = data.verdict;
+    }
+
+    if (servicesList) {
+      servicesList.innerHTML = '';
+      (data.local_node.services || []).forEach(svc => {
+        const card = document.createElement('div');
+        card.className = 'health-item-card';
+        card.innerHTML = `
+          <div class="item-header">
+            <span class="item-name">${svc.name}</span>
+            <span class="item-status ${svc.status === 'ready' ? 'ready' : 'offline'}">
+              ● ${svc.status === 'ready' ? '就绪' : '离线'}
+            </span>
+          </div>
+          <div class="item-meta">${svc.endpoint}</div>
+          <div class="item-meta">${svc.latency_ms ? svc.latency_ms + 'ms' : '-'}</div>
+        `;
+        servicesList.appendChild(card);
+      });
+    }
+
+    if (dockerVer) {
+      dockerVer.textContent = data.local_node.docker.message || '未运行';
+    }
+    if (dockerChips) {
+      dockerChips.innerHTML = '';
+      const containers = data.local_node.docker.containers || [];
+      if (containers.length === 0) {
+        dockerChips.innerHTML = '<span class="container-chip">无运行中的 harness 专属容器</span>';
+      } else {
+        containers.forEach(c => {
+          const chip = document.createElement('span');
+          chip.className = 'container-chip';
+          chip.textContent = `${c.name}: ${c.status}`;
+          dockerChips.appendChild(chip);
+        });
+      }
+    }
+
+    if (distributedList) {
+      distributedList.innerHTML = '';
+      (data.distributed_nodes || []).forEach(node => {
+        const card = document.createElement('div');
+        card.className = 'distributed-node-card';
+        card.innerHTML = `
+          <div class="node-title">
+            <span>${node.course_requirement}</span>
+            <span class="req-status-pill pill-blue">${node.assigned_role}</span>
+          </div>
+          <div class="node-sub">${node.detail}</div>
+        `;
+        distributedList.appendChild(card);
+      });
+    }
+  } catch (err) {
+    if (summaryText) summaryText.textContent = '健康检测失败：' + err.message;
+  }
+}
+
+const btnQuickHealth = document.getElementById('btn-quick-health');
+if (btnQuickHealth) {
+  btnQuickHealth.addEventListener('click', () => {
+    showModal('modal-health');
+    fetchAndRenderHealth();
+  });
+}
+
+const btnHealthRecheck = document.getElementById('health-recheck-btn');
+if (btnHealthRecheck) {
+  btnHealthRecheck.addEventListener('click', () => {
+    fetchAndRenderHealth();
+  });
+}
+
+const btnHealthQuickStart = document.getElementById('health-quick-start-btn');
+if (btnHealthQuickStart) {
+  btnHealthQuickStart.addEventListener('click', () => {
+    hideModal('modal-health');
+    showModal('modal-start');
+  });
+}
+
+const btnQuickStart = document.getElementById('btn-quick-start');
+if (btnQuickStart) {
+  btnQuickStart.addEventListener('click', () => {
+    showModal('modal-start');
+  });
+}
+
+const btnStartExecute = document.getElementById('start-execute-btn');
+if (btnStartExecute) {
+  btnStartExecute.addEventListener('click', async () => {
+    const roleSelect = document.getElementById('start-role-select');
+    const logOutput = document.getElementById('start-log-output');
+    const role = roleSelect ? roleSelect.value : 'all';
+
+    btnStartExecute.disabled = true;
+    btnStartExecute.textContent = '正在启动中...';
+    if (logOutput) logOutput.textContent = `[${new Date().toLocaleTimeString()}] 正在下发启动指令 (role=${role})...\n`;
+
+    try {
+      const res = await fetch('/api/services/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role })
+      });
+      const data = await res.json();
+      let log = `[${new Date().toLocaleTimeString()}] 启动执行完毕。\n`;
+      if (data.started && data.started.length > 0) {
+        log += `✓ 已启动服务:\n  - ${data.started.join('\n  - ')}\n`;
+      }
+      if (data.already_running && data.already_running.length > 0) {
+        log += `ℹ 已经在运行中:\n  - ${data.already_running.join('\n  - ')}\n`;
+      }
+      if (data.docker_note) {
+        log += `🐳 Docker 诊断: ${data.docker_note}\n`;
+      }
+      if (data.errors && data.errors.length > 0) {
+        log += `⚠ 错误或警告:\n  - ${data.errors.join('\n  - ')}\n`;
+      }
+      if (logOutput) logOutput.textContent = log;
+    } catch (err) {
+      if (logOutput) logOutput.textContent += `[错误] 启动请求失败: ${err.message}\n`;
+    } finally {
+      btnStartExecute.disabled = false;
+      btnStartExecute.textContent = '立即执行启动';
+    }
+  });
+}
+
+const reqBtnGoad = document.getElementById('req-btn-goad');
+if (reqBtnGoad) {
+  reqBtnGoad.addEventListener('click', async () => {
+    const title = document.getElementById('req-modal-title');
+    const sub = document.getElementById('req-modal-sub');
+    const body = document.getElementById('req-modal-body');
+
+    if (title) title.textContent = '课程设计要求一：Windows 域环境 (GOAD) 渗透测试';
+    if (sub) sub.textContent = '多节点域环境架构、攻击链验证与组员分布式协作状态';
+    if (body) body.innerHTML = '<div class="loading-state">正在拉取 Windows 域渗透验证与拓扑数据...</div>';
+    showModal('modal-req-test');
+
+    try {
+      const res = await fetch('/api/tests/goad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      lastReqTestData = data;
+
+      let topRows = (data.domain_topology || []).map(node => `
+        <tr>
+          <td><strong>${node.role}</strong></td>
+          <td><code>${node.hostname}</code></td>
+          <td>${node.ip}</td>
+          <td>${node.os}</td>
+          <td>${node.services}</td>
+        </tr>
+      `).join('');
+
+      let attackItems = (data.attack_path || []).map(p => `<li>${p}</li>`).join('');
+
+      if (body) {
+        body.innerHTML = `
+          <div class="req-test-section">
+            <h4>1. Windows 域靶场三节点拓扑 (预设漏洞与域控架构)</h4>
+            <table class="topology-table">
+              <thead>
+                <tr><th>节点角色</th><th>主机名</th><th>IP 地址</th><th>操作系统</th><th>运行服务</th></tr>
+              </thead>
+              <tbody>${topRows}</tbody>
+            </table>
+          </div>
+          <div class="req-test-section">
+            <h4>2. 预设攻击路径与域管理员提权验证链</h4>
+            <ol class="attack-path-list">${attackItems}</ol>
+          </div>
+          <div class="req-test-section">
+            <h4>3. 课程团队分工与执行状态</h4>
+            <p style="margin:0 0 6px 0; font-size:11px; color:#93c5fd;"><strong>状态判定：</strong>${data.verdict}</p>
+            <p style="margin:0; font-size:11px; color:var(--ink-secondary); line-height:1.5;">${data.host_distribution_note}</p>
+            <p style="margin:4px 0 0 0; font-size:11px; color:#34d399;"><strong>安全合规：</strong>${data.safety_baseline}</p>
+          </div>
+        `;
+      }
+    } catch (err) {
+      if (body) body.innerHTML = `<div class="error-banner">加载失败：${err.message}</div>`;
+    }
+  });
+}
+
+const reqBtnEg = document.getElementById('req-btn-exploitgym');
+if (reqBtnEg) {
+  reqBtnEg.addEventListener('click', async () => {
+    const title = document.getElementById('req-modal-title');
+    const sub = document.getElementById('req-modal-sub');
+    const body = document.getElementById('req-modal-body');
+
+    if (title) title.textContent = '课程设计要求二：ExploitGym 两项典型靶场测试';
+    if (sub) sub.textContent = '官方 Scorer 真实评测数据、沙箱隔离与代码利用执行轨迹';
+    if (body) body.innerHTML = '<div class="loading-state">正在核验 ExploitGym 任务清单与评测结果...</div>';
+    showModal('modal-req-test');
+
+    try {
+      const res = await fetch('/api/tests/exploitgym', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      lastReqTestData = data;
+
+      const t1 = data.task_1_specified;
+      const t2 = data.task_2_custom;
+
+      if (body) {
+        body.innerHTML = `
+          <div class="req-test-section">
+            <h4>任务一（指定任务）：${t1.task_id}</h4>
+            <p style="margin:0 0 4px 0; font-size:11px; color:var(--ink);"><strong>漏洞类型：</strong>${t1.type}</p>
+            <p style="margin:0 0 4px 0; font-size:11px; color:var(--ink-secondary);"><strong>成功目标：</strong>${t1.course_goal}</p>
+            <p style="margin:0 0 4px 0; font-size:11px; color:#fbbf24;"><strong>官方 Scorer 判定：</strong><code>${t1.scorer_result}</code></p>
+            <p style="margin:0; font-size:11px; color:var(--ink-secondary);"><strong>真实轨迹统计：</strong>${t1.turns} 轮对话，${t1.tool_calls} 次工具调用，Agent 退出码 ${t1.agent_exit_code}</p>
+          </div>
+
+          <div class="req-test-section">
+            <h4>任务二（自选任务）：${t2.task_id}</h4>
+            <p style="margin:0 0 4px 0; font-size:11px; color:var(--ink);"><strong>漏洞类型：</strong>${t2.type}</p>
+            <p style="margin:0 0 4px 0; font-size:11px; color:var(--ink-secondary);"><strong>成功目标：</strong>${t2.course_goal}</p>
+            <p style="margin:0 0 4px 0; font-size:11px; color:#fbbf24;"><strong>官方 Scorer 判定：</strong><code>${t2.scorer_result}</code></p>
+            <p style="margin:0; font-size:11px; color:var(--ink-secondary);"><strong>真实轨迹统计：</strong>${t2.turns} 次工具调用，${t2.model_requests} 次模型交互，Agent 退出码 ${t2.agent_exit_code}</p>
+          </div>
+
+          <div class="req-test-section">
+            <h4>学术诚信与官方验证机制</h4>
+            <p style="margin:0; font-size:11px; color:#34d399; line-height:1.5;">${data.academic_honesty}</p>
+          </div>
+        `;
+      }
+    } catch (err) {
+      if (body) body.innerHTML = `<div class="error-banner">加载失败：${err.message}</div>`;
+    }
+  });
+}
+
+const reqBtnComplexWeb = document.getElementById('req-btn-complex-web');
+if (reqBtnComplexWeb) {
+  reqBtnComplexWeb.addEventListener('click', () => {
+    const scenarioSelect = document.getElementById('scenario-input');
+    const targetInput = document.getElementById('target-input');
+    const runBtn = document.getElementById('run-button');
+
+    if (scenarioSelect) scenarioSelect.value = 'complex-web';
+    if (targetInput) targetInput.value = 'http://127.0.0.1:18089';
+
+    document.querySelectorAll('.chip-btn').forEach(c => c.classList.remove('active'));
+    const chip = document.querySelector('.chip-btn[data-scenario="complex-web"]');
+    if (chip) chip.classList.add('active');
+
+    if (runBtn) runBtn.click();
+
+    const cockpit = document.querySelector('.run-cockpit');
+    if (cockpit) cockpit.scrollIntoView({ behavior: 'smooth' });
+  });
+}
